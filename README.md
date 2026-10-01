@@ -21,6 +21,8 @@ For a completed educational game, award `10 + round(10 × score ÷ maximum_score
 
 For replays of the same activity, use the best completed score. An improvement awards only the difference in stars (for example, 18 then 19 means one additional star), preventing repeated full awards.
 
+The Supabase `award_game_result` RPC implements this conversion and replay rule for a trusted server only. It records source result IDs to prevent duplicates. A rollback test verified 150/190 → 18, repeated import → 0, improved result → 1 extra, and 4/5 in a different game → 18. The Base44 importer and verified student identity mapping are **not connected yet**, so this database function does not award stars from homework on its own.
+
 ## Agreed trading behavior (future release)
 
 Trades are asynchronous and limited to members of the same student class. A student may propose either an item-for-item barter or an item sale for stars. The recipient accepts or declines when they next open Oasis. Transfer the item(s) and/or stars together only on acceptance, after checking current ownership and balance; expired, declined, or invalid offers move nothing. The teacher Test Oasis belongs to a separate class and cannot trade with students. The current game does not yet have trading, inventory, dates, or vehicles.
