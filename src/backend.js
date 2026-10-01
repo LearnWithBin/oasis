@@ -1,0 +1,75 @@
+import { createClient } from '@supabase/supabase-js';
+
+const url = import.meta.env.VITE_SUPABASE_URL;
+const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+const client = url && key ? createClient(url, key) : null;
+const preview = new URLSearchParams(location.search).has('preview');
+const STORAGE_KEY = 'learnwithbin-oasis-preview-v1';
+const initial = () => ({ id: 'preview', oasis_name: '', avatar: { skin: '#a86843', hair: '#191719', clothes: '#ee9b52' }, stars: 6, items: [] });
+
+function readPreview() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || initial(); }
+  catch { return initial(); }
+}
+function savePreview(oasis) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(oasis));
+  return oasis;
+}
+function errorMessage(error) { throw new Error(error?.message || 'Please try again.'); }
+
+export const isPreview = preview;
+export const configured = Boolean(client);
+
+export async function enterOasis() {
+  if (preview) return readPreview();
+  if (!client) throw new Error('The Oasis has not been connected to its database yet.');
+  const { data: session } = await client.auth.getSession();
+  if (!session.session) {
+    const { error } = await client.auth.signInAnonymously();
+    if (error) errorMessage(error);
+  }
+  const invite = new URLSearchParams(location.search).get('invite');
+  if (invite) {
+    const { error } = await client.functions.invoke('redeem-invite', { body: { invite } });
+    if (error) errorMessage(error);
+    history.replaceState(null, '', location.pathname);
+  }
+  const { data, error } = await client.from('oases').select('id,oasis_name,avatar,stars,items(id,item_type,slot_index)').single();
+  if (error) throw new Error(invite ? error.message : 'Open your personal Oasis link to enter.');
+  return data;
+}
+
+export async function updateProfile(name, avatar) {
+  if (preview) return savePreview({ ...readPreview(), oasis_name: name, avatar });
+  const { error } = await client.rpc('set_oasis_profile', { p_name: name, p_avatar: avatar });
+  if (error) errorMessage(error);
+  return enterOasis();
+}
+
+export async function buyItem(itemType, slotIndex) {
+  if (preview) {
+    const oasis = readPreview();
+    const cost = itemType === 'tent' ? 4 : 2;
+    if (oasis.stars < cost || oasis.items.some(x => x.slot_index === slotIndex)) throw new Error('That spot is unavailable or you need more stars.');
+    oasis.stars -= cost;
+    oasis.items.push({ id: crypto.randomUUID(), item_type: itemType, slot_index: slotIndex });
+    return savePreview(oasis);
+  }
+  const { error } = await client.rpc('purchase_item', { p_type: itemType, p_slot: slotIndex });
+  if (error) errorMessage(error);
+  return enterOasis();
+}
+
+export async function moveItem(itemId, slotIndex) {
+  if (preview) {
+    const oasis = readPreview();
+    if (oasis.items.some(x => x.slot_index === slotIndex)) throw new Error('That spot is occupied.');
+    const item = oasis.items.find(x => x.id === itemId);
+    if (!item) throw new Error('Item not found.');
+    item.slot_index = slotIndex;
+    return savePreview(oasis);
+  }
+  const { error } = await client.rpc('move_item', { p_item: itemId, p_slot: slotIndex });
+  if (error) errorMessage(error);
+  return enterOasis();
+}
