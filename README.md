@@ -17,7 +17,13 @@ The current database stores `class_id`, so a new cohort can be created without m
 
 ## Agreed star conversion
 
-For a completed educational game, award `10 + round(10 × score ÷ maximum_score)` stars, capped at 10–20. Thus 150/190 and 4/5 each earn 18 stars. This normalizes games with different raw point totals and lets a student buy several current items per activity (tent: 4, palms: 2). The importer must use the actual maximum score for each activity, confirm completion, match known name variants to the correct student, and use the source result's unique ID for idempotency. Base44 historical records shown so far were created by Anonymous, so typed names alone are not proof of student identity. The policy for replaying an activity is still to be decided. Teacher “Test” results belong only to the separate Test Oasis. Other adults who played for fun are not students and must not receive student awards.
+For a completed educational game, award `10 + round(10 × score ÷ maximum_score)` stars, capped at 10–20. Thus 150/190 and 4/5 each earn 18 stars. This normalizes games with different raw point totals and lets a student buy several current items per activity (tent: 4, palms: 2). The importer must use the actual maximum score for each activity, confirm completion, match known name variants to the correct student, and use the source result's unique ID for idempotency. Base44 historical records shown so far were created by Anonymous, so typed names alone are not proof of student identity. Teacher “Test” results belong only to the separate Test Oasis. Other adults who played for fun are not students and must not receive student awards.
+
+For replays of the same activity, use the best completed score. An improvement awards only the difference in stars (for example, 18 then 19 means one additional star), preventing repeated full awards.
+
+## Agreed trading behavior (future release)
+
+Trades are asynchronous and limited to members of the same student class. A student may propose either an item-for-item barter or an item sale for stars. The recipient accepts or declines when they next open Oasis. Transfer the item(s) and/or stars together only on acceptance, after checking current ownership and balance; expired, declined, or invalid offers move nothing. The teacher Test Oasis belongs to a separate class and cannot trade with students. The current game does not yet have trading, inventory, dates, or vehicles.
 
 A temporary test Oasis used in development was removed after an end-to-end check of sign-in, private-link redemption, saving an avatar/name, buying, moving, balance, and separation between student accounts. Five student Oases and the separate teacher Test Oasis have six welcome stars each.
 
