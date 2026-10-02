@@ -1,5 +1,5 @@
 import './style.css';
-import { enterOasis, updateProfile, buyItem, moveItem, isPreview } from './backend.js';
+import { enterOasis, updateProfile, buyItem, moveItem, sellItem, isPreview } from './backend.js';
 import { mountGame } from './game.js';
 import { avatarMarkup } from './avatar.js';
 const asset = name => `${import.meta.env.BASE_URL}assets/${name}`;
@@ -102,10 +102,41 @@ async function handleSpot(index) {
 }
 
 function handleItem(item) {
-  if (intent.type !== 'move') {
-    intent = { type: 'move' };
-    document.querySelectorAll('.shop-item').forEach(b => b.classList.toggle('active', b.dataset.type === 'move'));
-  }
+  if (intent.type === 'move') return selectItemToMove(item);
+  const root = document.querySelector('#modal-root');
+  const label = item.item_type === 'tent' ? 'Canvas tent' : 'Date palms';
+  const refund = item.item_type === 'tent' ? 2 : 1;
+  root.innerHTML = `<div class="scrim"><section class="item-dialog" role="dialog" aria-modal="true" aria-labelledby="item-dialog-title">
+    <div class="kicker">YOUR OASIS</div><h2 id="item-dialog-title">${label}</h2>
+    <p>What would you like to do with this item?</p>
+    <div class="dialog-actions"><button type="button" id="choose-move">Move it</button><button type="button" id="choose-sell">Sell for ★ ${refund}</button></div>
+    <button type="button" class="dialog-cancel" id="close-item">Keep it here</button><div class="form-error" id="item-error" role="alert"></div>
+  </section></div>`;
+  root.querySelector('#close-item').onclick = () => { root.innerHTML = ''; };
+  root.querySelector('#choose-move').onclick = () => { root.innerHTML = ''; selectItemToMove(item); };
+  root.querySelector('#choose-sell').onclick = () => {
+    const dialog = root.querySelector('.item-dialog');
+    dialog.querySelector('p').textContent = `Sell this ${label.toLowerCase()} and receive ${refund} ${refund === 1 ? 'star' : 'stars'}?`;
+    dialog.querySelector('.dialog-actions').innerHTML = `<button type="button" id="confirm-sell">Yes, sell it</button>`;
+    dialog.querySelector('#close-item').textContent = 'Cancel';
+    dialog.querySelector('#confirm-sell').onclick = async event => {
+      const button = event.currentTarget;
+      button.disabled = true;
+      try {
+        const result = await sellItem(item.id);
+        oasis = result.oasis; selected = null; root.innerHTML = ''; sync();
+        say(`Sold for ${result.refund} ${result.refund === 1 ? 'star' : 'stars'}.`);
+      } catch (error) {
+        dialog.querySelector('#item-error').textContent = error.message;
+        button.disabled = false;
+      }
+    };
+  };
+}
+
+function selectItemToMove(item) {
+  intent = { type: 'move' };
+  document.querySelectorAll('.shop-item').forEach(b => b.classList.toggle('active', b.dataset.type === 'move'));
   selected = item;
   document.querySelector('#tip').textContent = 'Tap an empty spot to move this item';
   say('Now tap an empty glowing space to move this item.');

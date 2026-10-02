@@ -73,3 +73,18 @@ export async function moveItem(itemId, slotIndex) {
   if (error) errorMessage(error);
   return enterOasis();
 }
+
+export async function sellItem(itemId) {
+  if (preview) {
+    const oasis = readPreview();
+    const item = oasis.items.find(x => x.id === itemId);
+    if (!item) throw new Error('That item is not in your Oasis.');
+    const refund = item.item_type === 'tent' ? 2 : 1;
+    oasis.items = oasis.items.filter(x => x.id !== itemId);
+    oasis.stars += refund;
+    return { oasis: savePreview(oasis), refund };
+  }
+  const { data: refund, error } = await client.rpc('sell_item', { p_item: itemId });
+  if (error) errorMessage(error);
+  return { oasis: await enterOasis(), refund };
+}
