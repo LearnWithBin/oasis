@@ -64,8 +64,12 @@ function positionAvatar() {
 // send them across the pond; nearby taps let them follow the shore instead.
 function isDrySand(x, y) {
   if (x < .06 || x > .94 || y < .19 || y > .91) return false;
-  const pond = ((x - .52) / .29) ** 2 + ((y - .43) / .23) ** 2;
-  return pond > 1;
+  // The pool occupies the middle of the artwork and the waterfall reaches
+  // farther uphill than the pool. Leave a little shoreline clearance for the
+  // character's feet and body, which are larger than a single pointer pixel.
+  const pool = ((x - .55) / .30) ** 2 + ((y - .43) / .27) ** 2;
+  const waterfall = x > .54 && x < .73 && y < .37 && y > .17;
+  return pool > 1 && !waterfall;
 }
 
 function handleWalk(x, y) {
