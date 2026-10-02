@@ -60,16 +60,31 @@ function positionAvatar() {
   avatar.style.top = `${avatarPosition.y * 100}%`;
 }
 
-// Keep the character on dry ground. Sample the whole route so a long tap cannot
-// send them across the pond; nearby taps let them follow the shore instead.
+// Trace the water in the background art at the character's feet. Their head
+// and shoulders can reach over the edge, but their feet stay on dry ground.
+const pondOutline = [
+  [.39, .29], [.48, .27], [.59, .29], [.69, .31], [.74, .37],
+  [.71, .44], [.78, .49], [.80, .54], [.75, .56], [.70, .54],
+  [.68, .58], [.61, .61], [.55, .63], [.47, .60], [.39, .56],
+  [.31, .51], [.29, .46], [.35, .39], [.36, .34]
+];
+
+function insideOutline(x, y, outline) {
+  let inside = false;
+  for (let i = 0, j = outline.length - 1; i < outline.length; j = i++) {
+    const [xi, yi] = outline[i], [xj, yj] = outline[j];
+    if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+// Sample the whole route so a long tap cannot send them across the pond;
+// nearby taps let them walk right up to and around the shoreline.
 function isDrySand(x, y) {
-  if (x < .06 || x > .94 || y < .19 || y > .91) return false;
-  // The pool occupies the middle of the artwork and the waterfall reaches
-  // farther uphill than the pool. Leave a little shoreline clearance for the
-  // character's feet and body, which are larger than a single pointer pixel.
-  const pool = ((x - .55) / .30) ** 2 + ((y - .43) / .27) ** 2;
-  const waterfall = x > .54 && x < .73 && y < .37 && y > .17;
-  return pool > 1 && !waterfall;
+  if (x < .06 || x > .94 || y < .12 || y > .91) return false;
+  const feetY = y + .08;
+  const waterfall = x > .55 && x < .70 && feetY > .18 && feetY < .32;
+  return !waterfall && !insideOutline(x, feetY, pondOutline);
 }
 
 function handleWalk(x, y) {
