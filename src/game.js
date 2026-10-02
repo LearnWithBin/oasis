@@ -9,7 +9,7 @@ export const SPOTS = [
 ];
 
 // The persistent world uses normalized locations so scene art can be upgraded without moving saved items.
-export function mountGame(host, getState, onSpot, onItem) {
+export function mountGame(host, getState, onSpot, onItem, onWalk) {
   let scene;
   class OasisScene extends Phaser.Scene {
     constructor() { super('Oasis'); }
@@ -18,7 +18,11 @@ export function mountGame(host, getState, onSpot, onItem) {
       this.load.image('tent', asset('tent.webp'));
       this.load.image('palms', asset('date-palms.webp'));
     }
-    create() { scene = this; this.paint(); }
+    create() {
+      scene = this;
+      this.input.on('pointerdown', pointer => onWalk(pointer.worldX / 1536, pointer.worldY / 1024));
+      this.paint();
+    }
     paint() {
       this.tweens.killAll();
       this.children.removeAll(true);
@@ -32,10 +36,14 @@ export function mountGame(host, getState, onSpot, onItem) {
           const width = item.item_type === 'tent' ? 235 : 185;
           const art = this.add.image(x, y, key).setOrigin(0.5, 0.88);
           art.setDisplaySize(width, width * (art.height / art.width));
-          art.setInteractive({ useHandCursor: true }).on('pointerdown', () => onItem(item));
+          art.setInteractive({ useHandCursor: true }).on('pointerdown', (_pointer, _x, _y, event) => {
+            event.stopPropagation(); onItem(item);
+          });
         } else {
           const ring = this.add.ellipse(x, y, 116, 46, 0xffe3ad, 0.22).setStrokeStyle(3, 0xffffff, 0.65);
-          ring.setInteractive({ useHandCursor: true }).on('pointerdown', () => onSpot(index));
+          ring.setInteractive({ useHandCursor: true }).on('pointerdown', (_pointer, _x, _y, event) => {
+            event.stopPropagation(); onSpot(index);
+          });
           this.add.text(x, y - 7, '+', { fontSize: '32px', color: '#fff9e9', fontStyle: 'bold', stroke: '#987247', strokeThickness: 4 }).setOrigin(0.5);
         }
       });

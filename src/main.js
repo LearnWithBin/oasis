@@ -6,6 +6,7 @@ const asset = name => `${import.meta.env.BASE_URL}assets/${name}`;
 
 const app = document.querySelector('#app');
 let oasis, game, intent = { type: 'buy', item: 'palms' }, selected = null;
+let avatarPosition = { x: 0.45, y: 0.77 }, walkTimer;
 const skinOptions = ['#7a4b33', '#a86843', '#d49a6c', '#efc299'];
 const hairOptions = ['#191719', '#493128', '#7a4932', '#e8cf86', '#e7eaf0'];
 const clothesOptions = ['#ee9b52', '#4b9aaf', '#ad6e96', '#d6ad4d'];
@@ -23,7 +24,7 @@ function shell() {
   app.innerHTML = `<main class="shell">
     <header class="topbar"><div class="brand"><span class="brand-icon">✦</span><div><small>LEARNWITHBIN</small><strong>My Oasis</strong></div></div>
       <div class="top-actions"><div class="star-balance"><span>★</span> <b id="stars">0</b> <small>STARS</small></div><button id="edit" class="round" title="Edit your name and avatar">⚙</button></div></header>
-    <section class="stage"><div id="scene"></div><div class="world-avatar" id="world-avatar"></div><div class="scene-title"><span>MY LITTLE WORLD</span><h1 id="title"></h1></div><div class="welcome-tip" id="tip">Tap a glowing space to build</div></section>
+    <section class="stage"><div id="scene"></div><div class="world-avatar" id="world-avatar"></div><div class="scene-title"><span>MY LITTLE WORLD</span><h1 id="title"></h1></div><div class="welcome-tip" id="tip">Tap sand to walk · glowing spaces to build</div></section>
     <nav class="shop" aria-label="Build menu"><div class="shop-heading"><b>Build your Oasis</b><span>Choose an item, then tap a glowing spot</span></div>
       <button class="shop-item active" data-type="palms"><img src="${asset('date-palms.webp')}" alt="Date palms"/><span>Date palms</span><b>★ 2</b></button>
       <button class="shop-item" data-type="tent"><img src="${asset('tent.webp')}" alt="Canvas tent"/><span>Canvas tent</span><b>★ 4</b></button>
@@ -37,9 +38,10 @@ function shell() {
     const type = button.dataset.type;
     intent = type === 'move' ? { type: 'move' } : { type: 'buy', item: type };
     document.querySelectorAll('.shop-item').forEach(b => b.classList.toggle('active', b === button));
-    document.querySelector('#tip').textContent = type === 'move' ? 'Tap an item, then tap an empty spot' : 'Tap a glowing space to build';
+    document.querySelector('#tip').textContent = type === 'move' ? 'Tap an item, then tap an empty spot' : 'Tap sand to walk · glowing spaces to build';
   });
-  game = mountGame('scene', () => oasis, handleSpot, handleItem);
+  game = mountGame('scene', () => oasis, handleSpot, handleItem, handleWalk);
+  document.addEventListener('keydown', handleWalkKey);
   sync();
   if (!oasis.oasis_name) showProfile();
 }
@@ -48,7 +50,52 @@ function sync() {
   document.querySelector('#stars').textContent = oasis.stars;
   document.querySelector('#title').textContent = oasis.oasis_name || 'Your Oasis';
   document.querySelector('#world-avatar').innerHTML = avatarMarkup(oasis.avatar);
+  positionAvatar();
   game?.refresh();
+}
+
+function positionAvatar() {
+  const avatar = document.querySelector('#world-avatar');
+  avatar.style.left = `${avatarPosition.x * 100}%`;
+  avatar.style.top = `${avatarPosition.y * 100}%`;
+}
+
+// Keep the character on dry ground. Sample the whole route so a long tap cannot
+// send them across the pond; nearby taps let them follow the shore instead.
+function isDrySand(x, y) {
+  if (x < .06 || x > .94 || y < .19 || y > .91) return false;
+  const pond = ((x - .52) / .29) ** 2 + ((y - .43) / .23) ** 2;
+  return pond > 1;
+}
+
+function handleWalk(x, y) {
+  if (document.querySelector('.scrim') || !oasis?.oasis_name) return;
+  const start = avatarPosition;
+  const distance = Math.hypot(x - start.x, y - start.y);
+  const steps = Math.max(1, Math.ceil(distance / .02));
+  for (let i = 1; i <= steps; i++) {
+    if (!isDrySand(start.x + (x - start.x) * i / steps, start.y + (y - start.y) * i / steps)) {
+      say('Walk around the water by tapping closer spots on the sand.');
+      return;
+    }
+  }
+  if (distance < .01) return;
+  const avatar = document.querySelector('#world-avatar');
+  clearTimeout(walkTimer);
+  avatar.style.setProperty('--walk-time', `${Math.min(2.8, Math.max(.25, distance * 5))}s`);
+  avatar.classList.toggle('face-left', x < start.x);
+  avatar.classList.add('walking');
+  avatarPosition = { x, y };
+  positionAvatar();
+  walkTimer = setTimeout(() => avatar.classList.remove('walking'), Math.min(2800, Math.max(250, distance * 5000)));
+}
+
+function handleWalkKey(event) {
+  if (document.querySelector('.scrim') || /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || '')) return;
+  const direction = { ArrowUp: [0, -.045], ArrowDown: [0, .045], ArrowLeft: [-.04, 0], ArrowRight: [.04, 0], w: [0, -.045], s: [0, .045], a: [-.04, 0], d: [.04, 0] }[event.key];
+  if (!direction) return;
+  event.preventDefault();
+  handleWalk(avatarPosition.x + direction[0], avatarPosition.y + direction[1]);
 }
 
 function showProfile() {
