@@ -1,12 +1,13 @@
 import './style.css';
 import { enterOasis, updateProfile, buyItem, moveItem, isPreview } from './backend.js';
 import { mountGame } from './game.js';
+import { avatarMarkup } from './avatar.js';
 const asset = name => `${import.meta.env.BASE_URL}assets/${name}`;
 
 const app = document.querySelector('#app');
 let oasis, game, intent = { type: 'buy', item: 'palms' }, selected = null;
 const skinOptions = ['#7a4b33', '#a86843', '#d49a6c', '#efc299'];
-const hairOptions = ['#191719', '#493128', '#7a4932'];
+const hairOptions = ['#191719', '#493128', '#7a4932', '#e8cf86', '#e7eaf0'];
 const clothesOptions = ['#ee9b52', '#4b9aaf', '#ad6e96', '#d6ad4d'];
 
 function say(message) {
@@ -22,7 +23,7 @@ function shell() {
   app.innerHTML = `<main class="shell">
     <header class="topbar"><div class="brand"><span class="brand-icon">✦</span><div><small>LEARNWITHBIN</small><strong>My Oasis</strong></div></div>
       <div class="top-actions"><div class="star-balance"><span>★</span> <b id="stars">0</b> <small>STARS</small></div><button id="edit" class="round" title="Edit your name and avatar">⚙</button></div></header>
-    <section class="stage"><div id="scene"></div><div class="scene-title"><span>MY LITTLE WORLD</span><h1 id="title"></h1></div><div class="welcome-tip" id="tip">Tap a glowing space to build</div></section>
+    <section class="stage"><div id="scene"></div><div class="world-avatar" id="world-avatar"></div><div class="scene-title"><span>MY LITTLE WORLD</span><h1 id="title"></h1></div><div class="welcome-tip" id="tip">Tap a glowing space to build</div></section>
     <nav class="shop" aria-label="Build menu"><div class="shop-heading"><b>Build your Oasis</b><span>Choose an item, then tap a glowing spot</span></div>
       <button class="shop-item active" data-type="palms"><img src="${asset('date-palms.webp')}" alt="Date palms"/><span>Date palms</span><b>★ 2</b></button>
       <button class="shop-item" data-type="tent"><img src="${asset('tent.webp')}" alt="Canvas tent"/><span>Canvas tent</span><b>★ 4</b></button>
@@ -46,6 +47,7 @@ function shell() {
 function sync() {
   document.querySelector('#stars').textContent = oasis.stars;
   document.querySelector('#title').textContent = oasis.oasis_name || 'Your Oasis';
+  document.querySelector('#world-avatar').innerHTML = avatarMarkup(oasis.avatar);
   game?.refresh();
 }
 
@@ -62,14 +64,14 @@ function showProfile() {
   const form = document.querySelector('#profile-form');
   form.querySelector('#oasis-name').value = oasis.oasis_name || '';
   const draw = () => {
-    document.querySelector('#avatar-preview').innerHTML = `<div class="avatar-art" style="--skin:${avatar.skin};--hair:${avatar.hair};--clothes:${avatar.clothes}"><i class="hair"></i><i class="face"></i><i class="eyes"></i><i class="body"></i><i class="legs"></i></div>`;
+    document.querySelector('#avatar-preview').innerHTML = avatarMarkup(avatar);
     [['skin', skinOptions], ['hair', hairOptions], ['clothes', clothesOptions]].forEach(([part, choices]) => {
       const row = document.querySelector(`#${part}-options`);
       row.innerHTML = '';
       choices.forEach(color => {
         const b = document.createElement('button');
         b.type = 'button'; b.className = `swatch ${avatar[part] === color ? 'chosen' : ''}`;
-        b.style.background = color; b.setAttribute('aria-label', `${part} ${color}`);
+        b.style.background = color; b.setAttribute('aria-label', part === 'hair' && color === '#e8cf86' ? 'Blonde hair' : part === 'hair' && color === '#e7eaf0' ? 'White hair' : `${part} ${color}`);
         b.onclick = () => { avatar[part] = color; draw(); };
         row.append(b);
       });

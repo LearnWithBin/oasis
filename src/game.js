@@ -39,17 +39,6 @@ export function mountGame(host, getState, onSpot, onItem) {
           this.add.text(x, y - 7, '+', { fontSize: '32px', color: '#fff9e9', fontStyle: 'bold', stroke: '#987247', strokeThickness: 4 }).setOrigin(0.5);
         }
       });
-      // Small always-visible avatar. Drawn as game graphics so skin, hair and clothes can be changed freely.
-      const { skin, hair, clothes } = state.avatar;
-      const color = hex => Phaser.Display.Color.HexStringToColor(hex).color;
-      const a = this.add.graphics().setPosition(695, 820);
-      a.fillStyle(0x744c2a, 0.22).fillEllipse(0, 0, 72, 20);
-      a.fillStyle(color(clothes)).fillRoundedRect(-18, -70, 36, 49, 9);
-      a.fillStyle(0x4a342b).fillRoundedRect(-16, -25, 12, 24, 3).fillRoundedRect(4, -25, 12, 24, 3);
-      a.fillStyle(color(skin)).fillCircle(0, -87, 22);
-      a.fillStyle(color(hair)).fillEllipse(0, -103, 45, 24);
-      a.fillStyle(0x251e1a).fillCircle(-8, -85, 2).fillCircle(8, -85, 2);
-      this.tweens.add({ targets: a, y: 814, duration: 1400, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
     }
   }
   const game = new Phaser.Game({
