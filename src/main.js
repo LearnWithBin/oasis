@@ -83,8 +83,10 @@ function insideOutline(x, y, outline) {
 function isDrySand(x, y) {
   if (x < .06 || x > .94 || y < .12 || y > .91) return false;
   const feetY = y + .08;
-  const waterfall = x > .55 && x < .70 && feetY > .18 && feetY < .32;
-  return !waterfall && !insideOutline(x, feetY, pondOutline);
+  // The dry ledge above the waterfall is walkable too. The traced pond
+  // boundary already keeps feet out of the water; a separate rectangle
+  // around the waterfall also blocked this ledge.
+  return !insideOutline(x, feetY, pondOutline);
 }
 
 function handleWalk(x, y) {
