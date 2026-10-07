@@ -1,5 +1,6 @@
 import { enterOasis, getTrading, createTrade, resolveTrade } from './backend.js';
 
+import { isPen } from './pens.js';
 import { itemLabel as label, capacity } from './catalog.js';
 const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
 const statusLabels = { accepted: 'Trade complete', declined: 'Declined', cancelled: 'Cancelled', expired: 'Expired', invalid: 'Item no longer available' };
@@ -68,7 +69,7 @@ export function mountTrading({ getOasis, setOasis, say }) {
     panel.querySelector('#trade-error').textContent = '';
     body.innerHTML = `<div class="trade-toolbar"><button type="button" id="new-offer">Make an offer</button><button type="button" id="refresh-trades">Refresh</button></div>
       <div class="trade-sections"></div>`;
-    body.querySelector('#new-offer').disabled = !data.peers.length || !getOasis().items.some(i=>i.item_type!=='pen');
+    body.querySelector('#new-offer').disabled = !data.peers.length || !getOasis().items.some(i=>!isPen(i.item_type));
     body.querySelector('#new-offer').onclick = () => compose();
     body.querySelector('#refresh-trades').onclick = async event => {
       event.currentTarget.disabled = true;
@@ -81,7 +82,7 @@ export function mountTrading({ getOasis, setOasis, say }) {
       p.className = 'trade-empty';
       p.textContent = 'No classmates here yet. They appear after opening their personal Oasis links. The teacher Test Oasis is separate from the student class.';
       sections.append(p);
-    } else if (!getOasis().items.some(i=>i.item_type!=='pen')) {
+    } else if (!getOasis().items.some(i=>!isPen(i.item_type))) {
       const p = document.createElement('p'); p.className = 'trade-empty';
       p.textContent = 'Add an item or a baby goat to offer something of your own.'; sections.append(p);
     }
@@ -125,13 +126,13 @@ export function mountTrading({ getOasis, setOasis, say }) {
   function compose(itemId) {
     const body = panel.querySelector('#trade-content');
     panel.querySelector('#trade-error').textContent = '';
-    const items = getOasis().items.filter(i=>i.item_type!=='pen');
+    const items = getOasis().items.filter(i=>!isPen(i.item_type));
     // SQL also enforces one pending offer per item; all offered items stay movable.
     body.innerHTML = `<form id="offer-form" class="trade-form">
       <h3>Make an offer</h3>
       <label for="trade-recipient">Send to</label><select id="trade-recipient" required>${data.peers.map(p => `<option value="${esc(p.id)}">${esc(p.oasis_name)}</option>`).join('')}</select>
       <label for="trade-item">Your item</label><select id="trade-item" required>${items.map(i => `<option value="${esc(i.id)}">${esc(label(i.item_type))} · spot ${i.slot_index + 1}</option>`).join('')}</select>
-      <label for="trade-wants">Ask for</label><select id="trade-wants"><option value="palms">Date palms</option><option value="tent">Canvas tent</option><option value="goat">Baby goat</option><option value="stars">Stars</option></select>
+      <label for="trade-wants">Ask for</label><select id="trade-wants"><option value="palms">Date palms</option><option value="tent">Canvas tent</option><option value="goat">Baby goat</option><option value="chicken">Chicken</option><option value="stars">Stars</option></select>
       <div id="trade-price-row" hidden><label for="trade-price">How many stars?</label><input id="trade-price" type="number" min="1" max="100" step="1" inputmode="numeric" value="2"/></div>
       <p class="trade-note">Your classmate chooses which matching item to give. Offers last 7 days. You can cancel while waiting.</p>
       <div class="trade-actions"><button type="submit">Review offer</button><button type="button" id="offer-back" class="trade-secondary">Back</button></div>

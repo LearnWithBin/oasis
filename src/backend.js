@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { ITEMS, capacity, landLevelForCount } from './catalog.js';
-import { PEN_CAPACITY, ownedPens, penLocationAvailable, buildingClearOfPens } from './pens.js';
+import { PEN_CAPACITY, isPen, penSpecies, eggCollection, ownedPens, penLocationAvailable, buildingClearOfPens } from './pens.js';
 import { isAnimal, animalHomeSlot } from './animals.js';
 
 const url = import.meta.env.VITE_SUPABASE_URL;
@@ -22,6 +22,7 @@ function readPreview() {
   catch { return initial(); }
 }
 function normalizePens(oasis) {
+  oasis.eggs=oasis.eggs||0;
   for(const item of oasis.items)if(!isAnimal(item.item_type)||!ownedPens(oasis).some(p=>p.id===item.pen_item_id))item.pen_item_id=null;
 }
 function savePreview(oasis) {
@@ -51,7 +52,7 @@ export async function enterOasis() {
     if (error) errorMessage(error);
     history.replaceState(null, '', location.pathname);
   }
-  const { data, error } = await client.from('oases').select('id,oasis_name,avatar,stars,land_level,animal_home_slot,companion_item_id,items:items!items_oasis_id_fkey(id,item_type,slot_index,pen_item_id)').single();
+  const { data, error } = await client.from('oases').select('id,oasis_name,avatar,stars,land_level,animal_home_slot,companion_item_id,eggs,eggs_collected_at,items:items!items_oasis_id_fkey(id,item_type,slot_index,pen_item_id)').single();
   if (error) throw new Error(invite ? error.message : 'Open your personal Oasis link to enter.');
   return data;
 }
@@ -69,10 +70,10 @@ export async function buyItem(itemType, slotIndex) {
     const cost = ITEMS[itemType]?.cost;
     if (!cost || !Number.isInteger(slotIndex) || slotIndex < 0 || slotIndex >= capacity(oasis)) throw new Error('That land has not opened yet.');
     if (oasis.stars < cost) throw new Error('Save more stars to buy this item.');
-    if(itemType==='pen'&&!penLocationAvailable(oasis,slotIndex))throw new Error('Choose a roomy, dry spot for the pen.');
-    if(!isAnimal(itemType)&&itemType!=='pen'&&!buildingClearOfPens(oasis,slotIndex))throw new Error('Leave room around the animal pen.');
+    if(isPen(itemType)&&!penLocationAvailable(oasis,slotIndex))throw new Error('Choose a roomy, dry spot for the pen.');
+    if(!isAnimal(itemType)&&!isPen(itemType)&&!buildingClearOfPens(oasis,slotIndex))throw new Error('Leave room around the animal pen.');
     const occupant = oasis.items.find(x=>x.slot_index===slotIndex);
-    if (!isAnimal(itemType) && itemType!=='pen' && slotIndex===animalHomeSlot(oasis)) throw new Error('Move the animal home before building here.');
+    if (!isAnimal(itemType) && !isPen(itemType) && slotIndex===animalHomeSlot(oasis)) throw new Error('Move the animal home before building here.');
     if (occupant) {
       if (!isAnimal(occupant.item_type)) throw new Error('That spot is occupied.');
       const free = Array.from({length:capacity(oasis)},(_,i)=>i).find(i=>!oasis.items.some(x=>x.slot_index===i));
@@ -95,10 +96,10 @@ export async function moveItem(itemId, slotIndex) {
     if (!Number.isInteger(slotIndex) || slotIndex < 0 || slotIndex >= capacity(oasis)) throw new Error('That land has not opened yet.');
     const item = oasis.items.find(x => x.id === itemId);
     if (!item) throw new Error('Item not found.');
-    if(item.item_type==='pen'&&!penLocationAvailable(oasis,slotIndex,item.id))throw new Error('Choose a roomy, dry spot for the pen.');
-    if(!isAnimal(item.item_type)&&item.item_type!=='pen'&&!buildingClearOfPens(oasis,slotIndex,item.id))throw new Error('Leave room around the animal pen.');
+    if(isPen(item.item_type)&&!penLocationAvailable(oasis,slotIndex,item.id))throw new Error('Choose a roomy, dry spot for the pen.');
+    if(!isAnimal(item.item_type)&&!isPen(item.item_type)&&!buildingClearOfPens(oasis,slotIndex,item.id))throw new Error('Leave room around the animal pen.');
     if (item.slot_index===slotIndex) return savePreview(oasis);
-    if (!isAnimal(item.item_type) && item.item_type!=='pen' && slotIndex===animalHomeSlot(oasis)) throw new Error('Move the animal home before building here.');
+    if (!isAnimal(item.item_type) && !isPen(item.item_type) && slotIndex===animalHomeSlot(oasis)) throw new Error('Move the animal home before building here.');
     const occupant=oasis.items.find(x=>x.slot_index===slotIndex);
     if (occupant) {
       if (isAnimal(item.item_type)||!isAnimal(occupant.item_type)) throw new Error('That spot is occupied.');
@@ -183,10 +184,24 @@ export async function setPenAnimals(penId,animalIds) {
   const oasis=readPreview();
   if(!ownedPens(oasis).some(p=>p.id===penId))throw new Error('Choose a pen you own.');
   if(new Set(animalIds).size!==animalIds.length||animalIds.length>PEN_CAPACITY)throw new Error('This pen has room for six animals.');
+  const species=penSpecies(ownedPens(oasis).find(p=>p.id===penId));
+  if(animalIds.some(id=>!oasis.items.some(i=>i.id===id&&i.item_type===species)))throw new Error('Choose the matching animal for this home.');
   if(animalIds.some(id=>!oasis.items.some(i=>i.id===id&&isAnimal(i.item_type))))throw new Error('Choose animals you own.');
   for(const item of oasis.items){if(item.pen_item_id===penId)item.pen_item_id=null;if(animalIds.includes(item.id))item.pen_item_id=penId;}
   return savePreview(oasis);
  }
  const {error}=await client.rpc('set_pen_animals',{p_pen:penId,p_animals:animalIds});
  if(error)errorMessage(error);return enterOasis();
+}
+
+export async function collectEggs() {
+ if(preview){
+  const oasis=readPreview(),eggs=eggCollection(oasis);
+  if(!eggs.count)throw new Error('Give your chickens a coop first.');
+  if(!eggs.ready)throw new Error('Your chickens are still laying. Come back when the eggs are ready.');
+  oasis.eggs+=eggs.count;oasis.eggs_collected_at=new Date().toISOString();
+  return{oasis:savePreview(oasis),count:eggs.count};
+ }
+ const {data,error}=await client.rpc('collect_eggs');if(error)errorMessage(error);
+ return{oasis:await enterOasis(),count:data};
 }

@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { walkingRoute } from './ground.js';
 import { ITEMS } from './catalog.js';
 import { isAnimal, animalHomeSlot, ownedAnimals } from './animals.js';
-import { ownedPens, penResidents, penLocationAvailable, buildingClearOfPens, fenceClear } from './pens.js';
+import { isPen, ownedPens, penResidents, penLocationAvailable, buildingClearOfPens, fenceClear } from './pens.js';
 import { drawPen } from './pen-view.js';
 import { AnimalLife } from './animal-life.js';
 import { CORE_WIDTH as W, CORE_HEIGHT as H, WORLD_SPOTS, worldBounds } from './world.js';
@@ -18,6 +18,7 @@ export function mountGame(host, getState, onSpot, onItem, onWalk, onProjection, 
       this.load.image('tent', asset('tent.webp'));
       this.load.image('palms', asset('date-palms.webp'));
       this.load.svg('pen-shelter',asset('pen-shelter.svg'),{width:300,height:225});
+      this.load.svg('coop-shelter',asset('coop-shelter.svg'),{width:300,height:225});
       Object.values(ITEMS).filter(item=>item.animal).forEach(item=>{
         const config=item.animal;
         [[config.texture,item.image],[config.step,config.walkImage],[config.rest,config.restImage]].forEach(([key,file])=>{
@@ -93,11 +94,11 @@ export function mountGame(host, getState, onSpot, onItem, onWalk, onProjection, 
       this.penViews=ownedPens(state).map(pen=>drawPen(this,pen,penResidents(state,pen).length,()=>onItem(pen)));
       this.game.canvas.dataset.pens=JSON.stringify(ownedPens(state).map(p=>({id:p.id,slot:p.slot_index,count:penResidents(state,p).length})));
       const intent=getIntent();
-      const penPlacement=(intent?.type==='buy'&&intent.item==='pen')||(intent?.type==='move'&&intent.item==='pen');
+      const penPlacement=(intent?.type==='buy'&&isPen(intent.item))||(intent?.type==='move'&&isPen(intent.item));
       WORLD_SPOTS.slice(0,level*8).forEach((spot,index)=>{
         const x=spot.x*W,y=spot.y*H;
         const item=state.items.find(it=>it.slot_index===index);
-        if(item?.item_type==='pen')return;
+        if(isPen(item?.item_type))return;
         if(index===homeSlot){
           if(penPlacement&&!penLocationAvailable(state,index,intent?.id))return;
           const marker=this.add.ellipse(x,y+40,300,145,0xf8e5b6,.17).setStrokeStyle(3,0xffefc8,.8).setDepth(y-120);

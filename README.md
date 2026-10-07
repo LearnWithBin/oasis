@@ -4,7 +4,7 @@ A persistent Oasis building game. Earn stars, decorate your land, customize your
 
 ## One growing world
 
-The pond, waterfall, tents, date palms and baby goats share one continuous landscape. New ground opens around the existing Oasis as you build. Saved item IDs and star balances carry forward; the original eight building positions stay in place.
+The pond, waterfall, tents, date palms, goats and chickens share one continuous landscape. New ground opens around the existing Oasis as you build. Saved item IDs and star balances carry forward; the original eight building positions stay in place.
 
 - Tap sand to walk. Your character finds a dry route around the pond, and the camera follows.
 - Drag the scenery to explore without moving your character or buying anything.
@@ -18,13 +18,15 @@ The pond, waterfall, tents, date palms and baby goats share one continuous lands
 | Date palms | 2 stars | 1 star |
 | Canvas tent | 4 stars | 2 stars |
 | Baby goat | 8 stars | 4 stars |
-| Animal pen (six residents) | 12 stars | 6 stars |
+| Goat pen (six residents) | 12 stars | 6 stars |
+| Chicken | 6 stars | 3 stars |
+| Chicken coop (six residents) | 12 stars | 6 stars |
 
 Animals share one home area. Open **Animals** below the scene to choose one companion with **Follow me**, send it home, or move the shared home to a clear glowing spot. Existing goats gather automatically, and additional goats join the same home. They walk, rest and take dry routes around the pond. Changing companions sends the previous one walking home. Home and companion choices save across reloads. The animal menu also works when an animal is off screen.
 
 Tap a goat for individual selling/trading and **Add another baby goat**. Visually vacated animal positions can be reused for buildings without losing animals. Animals still count toward inventory capacity and land expansion. Feeding and longer daily routines are later additions.
 
-Buy **Animal pen**, then choose a roomy glowing spot on the same land. Select up to six owned animals in the pen menu and choose **Save animals**. Animals walk through its front gate, wander inside, and rest under the shelter. A chosen companion leaves through the gate and returns when sent home. Open **Animals → Manage pen** to change residents, or tap the pen itself. Move a pen for free; its residents walk to the new location. Selling a pen returns six stars and keeps all its animals. Pens stay on their owner’s Oasis; animals can still be traded. More pens provide homes for a larger herd.
+Buy **Goat pen**, then choose a roomy glowing spot on the same land. Select up to six owned goats in the pen menu and choose **Save animals**. Animals walk through its front gate, wander inside, and rest under the shelter. A chosen companion leaves through the gate and returns when sent home. Open **Animals** and choose the matching home to change residents, or tap the pen itself. Move a pen for free; its residents walk to the new location. Selling a pen returns six stars and keeps all its animals. Pens stay on their owner’s Oasis; animals can still be traded. More pens provide homes for a larger herd.
 
 More ground opens at 6, 14 and 22 owned items, adding eight spots each time, up to 32. Opened land stays yours after selling or trading. There are no separate land screens.
 
@@ -53,3 +55,11 @@ UI tests require Playwright through the primary runtime. Set `OASIS_BROWSER_EXEC
 Phaser renders one terrain texture and places purchased objects over it. Item locations are saved as stable slot IDs rather than screen pixels. Vehicles and the connected class map remain future work.
 
 `src/animals.js` and `src/animal-life.js` define shared home, herd, rest, companion and return behavior for all animal species. The item catalog supplies each species’ art, animation frames, dimensions and movement speed. New species also need their allowed type, price and pen eligibility registered in the database. `tests/animal-homes.sql` verifies ownership, grouped purchases, slot reuse, pending-trade preservation and sale/transfer cleanup in a rolled-back transaction. `tests/animals-ui.mjs` checks grouping, home changes, following around the pond, switching/dismissal, reloads, shared-home purchases and phone layout.
+
+## Chickens and daily eggs
+
+Buy chickens and a **Chicken coop** from the build menu. The coop has a white fence, coral roof, ramp and nesting box. It holds up to six chickens; goat pens remain brown and house goats. Both homes use the same gate, rest and companion behavior. Choose a chicken under **Animals → Follow me** to switch from a goat companion, then **Send home** to return it to its coop.
+
+Open a coop to assign residents and collect eggs. The first collection is available once chickens are housed. Each collection adds one egg per housed chicken across all your coops, once every 24 hours. The basket and collection time save across devices. Reassigning animals, moving or replacing a coop does not reset the collection timer. Eggs stay in the basket after selling a coop; eggs do not add stars.
+
+`tests/chickens.sql` checks species-specific housing, egg cooldowns, ownership, trading, refunds and the authenticated RPC in a rolled-back transaction. `tests/chickens-ui.mjs` checks purchases, switching species as pets, coop return, eggs, persistence and mobile layout. Cats, sheep, camels and elephants remain planned additions, with homes suited to each species.

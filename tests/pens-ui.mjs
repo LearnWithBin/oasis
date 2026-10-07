@@ -45,7 +45,7 @@ try {
  console.log('Game ready.');
  await page.locator('[data-type="pen"]').click();
  await spot(1.08,.73); // existing home marker; pen fits at slot 12
- await page.getByRole('heading',{name:'Animal pen 1'}).waitFor();
+ await page.getByRole('heading',{name:'Goat pen 1'}).waitFor();
  assert.equal((await stored()).stars,19,'pen costs twelve stars');
  assert.equal((await stored()).items.filter(i=>i.item_type==='goat').length,3,'pen placement preserves animals');
  for(const input of await page.locator('.pen-animal input').all())await input.check();

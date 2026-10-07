@@ -1,11 +1,12 @@
 import './style.css';
-import { enterOasis, updateProfile, buyItem, moveItem, sellItem, setAnimalHome, setAnimalCompanion, setPenAnimals, isPreview } from './backend.js';
+import { enterOasis, updateProfile, buyItem, moveItem, sellItem, setAnimalHome, setAnimalCompanion, setPenAnimals, collectEggs, isPreview } from './backend.js';
 import { mountGame } from './game.js';
 import { avatarMarkup } from './avatar.js';
 import { mountTrading } from './trading.js';
 import { ITEMS, itemLabel, capacity } from './catalog.js';
-import { ownedPens, animalPen, penResidents, PEN_CAPACITY } from './pens.js';
+import { isPen, penSpecies, eggCollection, ownedPens, animalPen, penResidents, PEN_CAPACITY } from './pens.js';
 import { isAnimal, animalHomeSlot, ownedAnimals } from './animals.js';
+const eggIcon='<svg width="18" height="22" viewBox="0 0 24 30" aria-hidden="true"><path d="M12 2C6 2 2 16 2 21a10 8 0 0 0 20 0C22 16 18 2 12 2Z" fill="#fff6dc" stroke="#b99357" stroke-width="2"/><path d="M7 18q-2 5 1 6" fill="none" stroke="#e5cc9e" stroke-width="2"/></svg>';
 const asset = name => `${import.meta.env.BASE_URL}assets/${name}`;
 
 const app = document.querySelector('#app');
@@ -33,13 +34,15 @@ function shell() {
     <section class="stage"><div id="scene"></div><div class="world-avatar" id="world-avatar"></div><div class="scene-title"><span>MY LITTLE WORLD</span><h1 id="title"></h1></div><div class="welcome-tip" id="tip">Tap sand to walk · drag to explore</div></section>
     <nav class="world-controls" aria-label="Explore your Oasis">
       <div class="world-buttons"><button id="zoom-out" type="button" aria-label="Zoom out">−</button><button id="zoom-in" type="button" aria-label="Zoom in">+</button><button id="whole-oasis" type="button">Whole Oasis</button><button id="follow-me" type="button">Follow me</button><button id="animal-menu" type="button">Animals</button></div>
-      <span class="world-status" id="world-status"></span><span class="land-progress" id="land-progress">Your land grows as you build</span>
+      <span class="world-status" id="world-status"></span><span class="egg-basket" id="egg-basket">${eggIcon} 0 eggs</span><span class="land-progress" id="land-progress">Your land grows as you build</span>
     </nav>
     <nav class="shop" aria-label="Build menu"><div class="shop-heading"><b>Build your Oasis</b><span>Choose an item, then tap a glowing spot</span></div>
       <button class="shop-item active" data-type="palms"><img src="${asset('date-palms.webp')}" alt="Date palms"/><span>Date palms</span><b>★ 2</b></button>
       <button class="shop-item" data-type="tent"><img src="${asset('tent.webp')}" alt="Canvas tent"/><span>Canvas tent</span><b>★ 4</b></button>
       <button class="shop-item" data-type="goat"><img src="${asset('baby-goat.svg')}" alt="Baby goat"/><span>Baby goat</span><b>★ 8</b></button>
-      <button class="shop-item" data-type="pen"><img src="${asset('animal-pen.svg')}" alt="Animal pen"/><span>Animal pen</span><small>room for 6</small><b>★ 12</b></button>
+      <button class="shop-item" data-type="pen"><img src="${asset('animal-pen.svg')}" alt="Goat pen"/><span>Goat pen</span><small>room for 6</small><b>★ 12</b></button>
+      <button class="shop-item" data-type="chicken"><img src="${asset('chicken.svg')}" alt="Chicken"/><span>Chicken</span><b>★ 6</b></button>
+      <button class="shop-item" data-type="coop"><img src="${asset('chicken-coop.svg')}" alt="Chicken coop"/><span>Chicken coop</span><small>room for 6</small><b>★ 12</b></button>
       <button class="shop-item move" data-type="move"><span class="move-icon">↔</span><span>Rearrange</span><small>free</small></button>
       <button class="shop-item trades" id="class-trades" data-type="trade"><span class="move-icon">⇄</span><span>Class trades</span><small>items or stars</small><b id="trade-count" hidden></b></button>
     </nav><div id="toast" class="toast" role="status" hidden></div>
@@ -52,7 +55,7 @@ function shell() {
     const type = button.dataset.type;
     intent = type === 'move' ? { type: 'move' } : { type: 'buy', item: type };
     document.querySelectorAll('.shop-item').forEach(b => b.classList.toggle('active', b === button));
-    document.querySelector('#tip').textContent = type === 'move' ? 'Tap an item, then tap an empty spot' : type==='pen'?'Tap a roomy glowing spot to build a pen':'Tap sand to walk · drag to explore';
+    document.querySelector('#tip').textContent = type === 'move' ? 'Tap an item, then tap an empty spot' : isPen(type)?'Tap a roomy glowing spot to build a pen':'Tap sand to walk · drag to explore';
     game?.refresh();
   });
   game = mountGame('scene', () => oasis, handleSpot, handleItem, handleWalk, projectAvatar, () => intent);
@@ -72,6 +75,7 @@ function shell() {
 
 function sync() {
   document.querySelector('#stars').textContent = oasis.stars;
+  document.querySelector('#egg-basket').innerHTML=`${eggIcon} ${oasis.eggs||0} ${(oasis.eggs||0)===1?'egg':'eggs'}`;
   document.querySelector('#title').textContent = oasis.oasis_name || 'Your Oasis';
   document.querySelector('#world-avatar').innerHTML = avatarMarkup(oasis.avatar);
   document.querySelector('#world-status').textContent = `${oasis.items.length} / ${capacity(oasis)} items`;
@@ -166,7 +170,7 @@ async function handleSpot(index) {
       } else say(isAnimal(intent.item) ? 'Your new animal has joined the home group.' : `Added ${itemLabel(intent.item).toLowerCase()} to your Oasis!`);
     }
     sync();
-    if(intent.type==='buy'&&intent.item==='pen'){const pen=oasis.items.find(i=>i.item_type==='pen'&&i.slot_index===index);if(pen)showPen(pen);}
+    if(intent.type==='buy'&&isPen(intent.item)){const pen=oasis.items.find(i=>isPen(i.item_type)&&i.slot_index===index);if(pen)showPen(pen);}
     if ((oasis.land_level || 1) > oldLevelForView) game.overview();
   } catch (error) { say(error.message); } finally { inventoryBusy = false; }
 }
@@ -174,7 +178,7 @@ async function handleSpot(index) {
 function handleItem(item) {
   if (document.querySelector('.scrim')) return;
   if (intent.type === 'move') return selectItemToMove(item);
-  if(item.item_type==='pen')return showPen(item);
+  if(isPen(item.item_type))return showPen(item);
   const root = document.querySelector('#modal-root');
   const label = itemLabel(item.item_type);
   const refund = ITEMS[item.item_type].refund;
@@ -252,7 +256,7 @@ function showAnimals() {
     <div class="kicker">YOUR OASIS</div><h2 id="animals-title">Your animals</h2>
     <p>${animals.length?'Choose one companion to follow you. Animals return to their pen or shared home.':'Buy an animal from the build menu to start your home group.'}</p>
     <div class="animal-list">${animals.map((item,index)=>`<div class="animal-card"><img src="${asset(ITEMS[item.item_type].image)}" alt=""/><span>${itemLabel(item.item_type)} ${index+1}<small>${oasis.companion_item_id===item.id?'Your companion':animalPen(oasis,item)?`Pen ${ownedPens(oasis).findIndex(p=>p.id===item.pen_item_id)+1}`:'Shared home'}</small></span><button type="button" data-pet="${item.id}">${oasis.companion_item_id===item.id?'Send home':'Follow me'}</button></div>`).join('')}</div>
-    ${ownedPens(oasis).map((pen,index)=>`<button type="button" class="item-trade" data-pen="${pen.id}">Manage pen ${index+1} · ${penResidents(oasis,pen).length}/6 animals</button>`).join('')}
+    ${ownedPens(oasis).map((pen,index)=>`<button type="button" class="item-trade" data-pen="${pen.id}">${itemLabel(pen.item_type)} ${index+1} · ${penResidents(oasis,pen).length}/6 animals</button>`).join('')}
     ${animals.some(i=>!animalPen(oasis,i))?'<button type="button" id="move-animal-home" class="item-trade">Move animal home</button>':''}
     <button type="button" id="close-animals" class="dialog-cancel">Close animals</button><div id="item-error" class="form-error" role="alert"></div>
   </section></div>`;
@@ -263,17 +267,19 @@ function showAnimals() {
 }
 
 function showPen(pen) {
- const root=document.querySelector('#modal-root'),animals=ownedAnimals(oasis);
+ const root=document.querySelector('#modal-root'),animals=ownedAnimals(oasis).filter(i=>i.item_type===penSpecies(pen)),eggs=eggCollection(oasis);
  const number=ownedPens(oasis).findIndex(p=>p.id===pen.id)+1;
  root.innerHTML=`<div class="scrim"><section class="item-dialog animal-dialog" role="dialog" aria-modal="true" aria-labelledby="pen-title">
-  <div class="kicker">ON YOUR OASIS</div><h2 id="pen-title">Animal pen ${number}</h2>
-  <p>Choose up to six animals to live here. Your pet can come out with you and return through the gate.</p>
+  <div class="kicker">ON YOUR OASIS</div><h2 id="pen-title">${itemLabel(pen.item_type)} ${number}</h2>
+  <p>Choose up to six ${penSpecies(pen)==='chicken'?'chickens':'goats'} to live here. Your pet can come out with you and return through the gate.</p>
+  ${pen.item_type==='coop'?`<div class="egg-collection"><b>${eggIcon} Your basket: ${oasis.eggs||0} ${(oasis.eggs||0)===1?'egg':'eggs'}</b><p>${!eggs.count?'House your chickens here to start collecting eggs.':eggs.ready?'One egg per housed chicken is ready to collect.':`Next eggs in ${Math.ceil(eggs.wait/3600000)} hours. Collect once every 24 hours.`}</p><button type="button" id="collect-eggs" class="primary" ${eggs.ready?'':'disabled'}>Collect ${eggs.count} ${eggs.count===1?'egg':'eggs'}</button></div>`:''}
   <div class="pen-count" id="pen-count"></div>
   <div class="animal-list">${animals.map((item,index)=>`<label class="animal-card pen-animal"><img src="${asset(ITEMS[item.item_type].image)}" alt=""/><span>${itemLabel(item.item_type)} ${index+1}<small>${animalPen(oasis,item)?`Lives in pen ${ownedPens(oasis).findIndex(p=>p.id===item.pen_item_id)+1}`:'Lives at the shared home'}</small></span><input type="checkbox" value="${item.id}" ${item.pen_item_id===pen.id?'checked':''} aria-label="House ${itemLabel(item.item_type).toLowerCase()} ${index+1}"/></label>`).join('')}</div>
   ${animals.length?'<button type="button" class="primary" id="save-pen">Save animals</button>':'<p>Buy animals from the build menu, then return here to choose their home.</p>'}
   <div class="dialog-actions"><button type="button" id="move-pen">Move pen</button><button type="button" id="sell-pen">Sell for ★ 6</button></div>
   <button type="button" class="dialog-cancel" id="close-pen">Keep it here</button><div class="form-error" id="item-error" role="alert"></div>
  </section></div>`;
+ root.querySelector('#collect-eggs')?.addEventListener('click',()=>animalAction(async()=>{const result=await collectEggs();say(`Collected ${result.count} ${result.count===1?'egg':'eggs'}!`);return result.oasis;},'Eggs added to your basket!'));
  const selectedAnimals=()=>Array.from(root.querySelectorAll('input:checked'),input=>input.value);
  const update=()=>{const n=selectedAnimals().length;root.querySelector('#pen-count').textContent=`${n} / ${PEN_CAPACITY} animals`;const save=root.querySelector('#save-pen');if(save)save.disabled=n>PEN_CAPACITY;};
  root.querySelectorAll('input').forEach(input=>input.onchange=update);update();

@@ -13,7 +13,7 @@ export class AnimalLife {
     for(const id of this.positions.keys())if(!animals.some(item=>item.id===id))this.positions.delete(id);
     animals.forEach((item,index)=>{
       const pen=animalPen(state,item),config={...ITEMS[item.item_type].animal},home=herdPosition(state,index);
-      if(pen){config.width=105;config.height=84;}
+      if(pen){config.width=item.item_type==='chicken'?86:105;config.height=item.item_type==='chicken'?78:84;}
       const saved=this.positions.get(item.id),position=saved&&isDryGround(saved.x,saved.y,state.land_level||1)?saved:home;
       const shadow=this.scene.add.ellipse(0,0,70,15,0x674b32,.22);
       const art=this.scene.add.sprite(0,0,config.texture).setOrigin(.5,.92).setDisplaySize(config.width,config.height);
