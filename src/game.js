@@ -1,5 +1,8 @@
 import Phaser from 'phaser';
-import { dryRoute, walkingRoute } from './ground.js';
+import { walkingRoute } from './ground.js';
+import { ITEMS } from './catalog.js';
+import { isAnimal, animalHomeSlot, ownedAnimals } from './animals.js';
+import { AnimalLife } from './animal-life.js';
 import { CORE_WIDTH as W, CORE_HEIGHT as H, WORLD_SPOTS, worldBounds } from './world.js';
 const asset = name => `${import.meta.env.BASE_URL}assets/${name}`;
 
@@ -12,15 +15,22 @@ export function mountGame(host, getState, onSpot, onItem, onWalk, onProjection) 
       this.load.image('expanded-world', asset('oasis-expanded.webp'));
       this.load.image('tent', asset('tent.webp'));
       this.load.image('palms', asset('date-palms.webp'));
-      this.load.svg('goat', asset('baby-goat.svg'), {width:240,height:192});
-      this.load.svg('goat-step', asset('baby-goat-step.svg'), {width:240,height:192});
+      Object.values(ITEMS).filter(item=>item.animal).forEach(item=>{
+        const config=item.animal;
+        [[config.texture,item.image],[config.step,config.walkImage],[config.rest,config.restImage]].forEach(([key,file])=>{
+          if(file.endsWith('.svg'))this.load.svg(key,asset(file),{width:240,height:192});
+          else this.load.image(key,asset(file));
+        });
+      });
     }
     create() {
       scene = this;
       this.player = {x:pendingPosition.x*W,y:pendingPosition.y*H};
       this.center = {x:W/2,y:H/2};
       this.follow = false;
-      this.anims.create({key:'goat-walk',frames:[{key:'goat'},{key:'goat-step'}],frameRate:6,repeat:-1});
+      Object.entries(ITEMS).filter(([,item])=>item.animal).forEach(([type,item])=>this.anims.create({key:`${type}-walk`,frames:[{key:item.animal.texture},{key:item.animal.step}],frameRate:6,repeat:-1}));
+      this.life=new AnimalLife(this,onItem);
+      this.trail=[{...this.player}];
       // One continuous illustrated terrain. Preserve a roomy foreground while
       // keeping the pond aligned with the existing saved building locations.
       const source=this.textures.get('expanded-world').getSourceImage();
@@ -68,18 +78,25 @@ export function mountGame(host, getState, onSpot, onItem, onWalk, onProjection) 
       object.setInteractive({useHandCursor:true}).on('pointerdown',()=>{if(!blocked())this.hitTarget=callback;});
     }
     paint() {
-      this.ambient?.destroy();
-      this.goatTimers?.forEach(timer=>timer.remove());this.goatTimers=[];
-      this.goatTweens?.forEach(tween=>tween.stop());this.goatTweens=[];
+      // Capture current animal positions before rebuilding sprites. A companion
+      // change or home move must send animals walking, rather than teleporting.
+      for(const node of this.life.nodes)this.life.positions.set(node.item.id,{x:node.view.x/W,y:node.view.y/H});
+      this.life.nodes=[];
       this.children.removeAll(true);
       const state=getState(),level=state.land_level||1;
       this.bounds=worldBounds(level);
       this.add.image(W/2,H,'terrain');
+      const homeSlot=animalHomeSlot(state);
       WORLD_SPOTS.slice(0,level*8).forEach((spot,index)=>{
         const x=spot.x*W,y=spot.y*H;
         const item=state.items.find(it=>it.slot_index===index);
-        if(item?.item_type==='goat')return this.addGoat(item,x,y);
-        if(item){
+        if(index===homeSlot){
+          const marker=this.add.ellipse(x,y+40,300,145,0xf8e5b6,.17).setStrokeStyle(3,0xffefc8,.8).setDepth(y-120);
+          this.target(marker,()=>onSpot(index));
+          this.add.text(x,y+115,`Animal home · ${ownedAnimals(state).length}`,{fontSize:'24px',fontStyle:'bold',color:'#fff8df',stroke:'#705333',strokeThickness:4}).setOrigin(.5).setDepth(y+115);
+          return;
+        }
+        if(item&&!isAnimal(item.item_type)){
           const width=item.item_type==='tent'?235:185;
           const art=this.add.image(x,y,item.item_type).setOrigin(.5,.88);
           art.setDisplaySize(width,width*art.height/art.width).setDepth(y);
@@ -90,6 +107,7 @@ export function mountGame(host, getState, onSpot, onItem, onWalk, onProjection) 
           this.add.text(x,y-7,'+',{fontSize:'32px',color:'#fff9e9',fontStyle:'bold',stroke:'#987247',strokeThickness:4}).setOrigin(.5).setDepth(y+1);
         }
       });
+      this.life.rebuild(state);
       // A soft boundary shows the edge of your property without dividing the world.
       if(level>1){
         const b=this.bounds;
@@ -97,29 +115,6 @@ export function mountGame(host, getState, onSpot, onItem, onWalk, onProjection) 
       }
       if(this.cameras.main.zoom<this.minZoom())this.overview();
       this.applyCamera();
-    }
-    addGoat(item,x,y){
-      const shadow=this.add.ellipse(0,0,70,15,0x674b32,.22);
-      const goat=this.add.sprite(0,0,'goat').setOrigin(.5,.92).setDisplaySize(142,114);
-      const animal=this.add.container(x,y,[shadow,goat]).setName(`goat:${item.id}`).setDepth(y);
-      this.target(goat,()=>onItem(item));
-      const later=(delay,callback)=>this.goatTimers.push(this.time.delayedCall(delay,callback));
-      const wander=()=>{
-        if(!animal.active)return;
-        const start={x:animal.x/W,y:animal.y/H};let target;
-        for(let attempt=0;attempt<12;attempt++){
-          const candidate={x:x/W+Phaser.Math.FloatBetween(-.095,.095),y:y/H+Phaser.Math.FloatBetween(-.065,.065)};
-          if(dryRoute(start,candidate,getState().land_level||1)){target=candidate;break;}
-        }
-        if(!target){later(1800,wander);return;}
-        goat.setFlipX(target.x<start.x);goat.play('goat-walk');
-        this.goatTweens.push(this.tweens.add({targets:animal,x:target.x*W,y:target.y*H,duration:Math.max(900,Math.hypot(target.x-start.x,target.y-start.y)*16000),ease:'Sine.easeInOut',onUpdate:()=>animal.setDepth(animal.y),onComplete:()=>{
-          goat.stop().setTexture('goat');
-          this.goatTweens.push(this.tweens.add({targets:goat,y:-28,duration:230,ease:'Sine.easeOut',yoyo:true}));
-          later(Phaser.Math.Between(1600,3500),wander);
-        }}));
-      };
-      later(Phaser.Math.Between(350,1400),wander);
     }
     minZoom(){const b=this.bounds||worldBounds(1);return Math.max(W/b.width,H/b.height);}
     zoomTo(zoom){this.cameras.main.setZoom(Phaser.Math.Clamp(zoom,this.minZoom(),1.6));this.applyCamera();}
@@ -149,9 +144,12 @@ export function mountGame(host, getState, onSpot, onItem, onWalk, onProjection) 
       };
       next();return true;
     }
-    update(){
+    update(time,delta){
       if(!this.player||!this.bounds)return;
       if(this.follow){this.center.x=Phaser.Math.Linear(this.center.x,this.player.x,.12);this.center.y=Phaser.Math.Linear(this.center.y,this.player.y,.12);this.applyCamera();}
+      const last=this.trail.at(-1);
+      if(Math.hypot(this.player.x-last.x,this.player.y-last.y)>18){this.trail.push({...this.player});if(this.trail.length>200)this.trail.shift();}
+      this.life.update(time,delta,this.player,this.trail);
       const cam=this.cameras.main;
       // DOM character uses the same camera projection as every Phaser object.
       const x=W/2+(this.player.x-this.center.x)*cam.zoom;

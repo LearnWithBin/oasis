@@ -1,9 +1,10 @@
 import './style.css';
-import { enterOasis, updateProfile, buyItem, moveItem, sellItem, isPreview } from './backend.js';
+import { enterOasis, updateProfile, buyItem, moveItem, sellItem, setAnimalHome, setAnimalCompanion, isPreview } from './backend.js';
 import { mountGame } from './game.js';
 import { avatarMarkup } from './avatar.js';
 import { mountTrading } from './trading.js';
 import { ITEMS, itemLabel, capacity } from './catalog.js';
+import { isAnimal, animalHomeSlot, ownedAnimals } from './animals.js';
 const asset = name => `${import.meta.env.BASE_URL}assets/${name}`;
 
 const app = document.querySelector('#app');
@@ -30,7 +31,7 @@ function shell() {
       <div class="top-actions"><div class="star-balance"><span>★</span> <b id="stars">0</b> <small>STARS</small></div><button id="edit" class="round" title="Edit your name and avatar">⚙</button></div></header>
     <section class="stage"><div id="scene"></div><div class="world-avatar" id="world-avatar"></div><div class="scene-title"><span>MY LITTLE WORLD</span><h1 id="title"></h1></div><div class="welcome-tip" id="tip">Tap sand to walk · drag to explore</div></section>
     <nav class="world-controls" aria-label="Explore your Oasis">
-      <div class="world-buttons"><button id="zoom-out" type="button" aria-label="Zoom out">−</button><button id="zoom-in" type="button" aria-label="Zoom in">+</button><button id="whole-oasis" type="button">Whole Oasis</button><button id="follow-me" type="button">Follow me</button></div>
+      <div class="world-buttons"><button id="zoom-out" type="button" aria-label="Zoom out">−</button><button id="zoom-in" type="button" aria-label="Zoom in">+</button><button id="whole-oasis" type="button">Whole Oasis</button><button id="follow-me" type="button">Follow me</button><button id="animal-menu" type="button">Animals</button></div>
       <span class="world-status" id="world-status"></span><span class="land-progress" id="land-progress">Your land grows as you build</span>
     </nav>
     <nav class="shop" aria-label="Build menu"><div class="shop-heading"><b>Build your Oasis</b><span>Choose an item, then tap a glowing spot</span></div>
@@ -56,6 +57,7 @@ function shell() {
   document.querySelector('#zoom-out').onclick = () => game.zoom(-1);
   document.querySelector('#whole-oasis').onclick = () => game.overview();
   document.querySelector('#follow-me').onclick = () => game.follow();
+  document.querySelector('#animal-menu').onclick = showAnimals;
   document.addEventListener('keydown', handleWalkKey);
   sync();
   if (!oasis.oasis_name) showProfile();
@@ -69,7 +71,7 @@ function sync() {
   document.querySelector('#stars').textContent = oasis.stars;
   document.querySelector('#title').textContent = oasis.oasis_name || 'Your Oasis';
   document.querySelector('#world-avatar').innerHTML = avatarMarkup(oasis.avatar);
-  document.querySelector('#world-status').textContent = `${oasis.items.length} / ${capacity(oasis)} spots`;
+  document.querySelector('#world-status').textContent = `${oasis.items.length} / ${capacity(oasis)} items`;
   document.querySelector('#land-progress').textContent = (oasis.land_level || 1) < 4 ? 'Your land grows as you build' : 'Room for 32 items';
   game?.refresh();
 }
@@ -145,7 +147,12 @@ async function handleSpot(index) {
   inventoryBusy = true;
   const oldLevelForView = oasis.land_level || 1;
   try {
-    if (intent.type === 'move') {
+    if (intent.type === 'animal-home') {
+      oasis = await setAnimalHome(index); intent = {type:'buy',item:'goat'};
+      document.querySelectorAll('.shop-item').forEach(button=>button.classList.toggle('active',button.dataset.type==='goat'));
+      document.querySelector('#tip').textContent = 'Tap sand to walk · drag to explore';
+      say('Your animals are walking to their new home.');
+    } else if (intent.type === 'move') {
       if (!selected) return say('Tap an item first, then choose where to move it.');
       oasis = await moveItem(selected.id, index); selected = null; say('Your item has moved.');
     } else {
@@ -153,7 +160,7 @@ async function handleSpot(index) {
       oasis = await buyItem(intent.item, index);
       if ((oasis.land_level || 1) > oldLevel) {
         say('Your Oasis grew! New ground is open around your land.');
-      } else say(intent.item === 'goat' ? 'Your baby goat is here! Watch it explore.' : `Added ${itemLabel(intent.item).toLowerCase()} to your Oasis!`);
+      } else say(isAnimal(intent.item) ? 'Your new animal has joined the home group.' : `Added ${itemLabel(intent.item).toLowerCase()} to your Oasis!`);
     }
     sync();
     if ((oasis.land_level || 1) > oldLevelForView) game.overview();
@@ -170,9 +177,15 @@ function handleItem(item) {
     <div class="kicker">YOUR OASIS</div><h2 id="item-dialog-title">${label}</h2>
     <p>What would you like to do with this item?</p>
     <div class="dialog-actions"><button type="button" id="choose-move">Move it</button><button type="button" id="choose-sell">Sell for ★ ${refund}</button></div>
+    ${isAnimal(item.item_type) ? `<div class="animal-actions"><button id="choose-companion" type="button">${oasis.companion_item_id===item.id?'Send home':'Follow me'}</button><button id="add-animal" type="button">Add another ${label.toLowerCase()} · ★ ${ITEMS[item.item_type].cost}</button></div>` : ''}
     <button type="button" class="item-trade" id="choose-trade">Offer to a classmate</button>
     <button type="button" class="dialog-cancel" id="close-item">Keep it here</button><div class="form-error" id="item-error" role="alert"></div>
   </section></div>`;
+  if (isAnimal(item.item_type)) {
+    root.querySelector('#choose-move').textContent = 'Move animal home';
+    root.querySelector('#choose-companion').onclick = () => animalAction(() => setAnimalCompanion(oasis.companion_item_id===item.id?null:item.id));
+    root.querySelector('#add-animal').onclick = () => animalAction(() => buyItem(item.item_type,animalHomeSlot(oasis)), 'Your new animal has joined the home group.');
+  }
   root.querySelector('#close-item').onclick = () => { root.innerHTML = ''; };
   root.querySelector('#choose-move').onclick = () => { root.innerHTML = ''; selectItemToMove(item); };
   root.querySelector('#choose-trade').onclick = () => trading.open(item.id);
@@ -197,11 +210,47 @@ function handleItem(item) {
 }
 
 function selectItemToMove(item) {
+  if(isAnimal(item.item_type)) return chooseAnimalHome();
   intent = { type: 'move' };
   document.querySelectorAll('.shop-item').forEach(b => b.classList.toggle('active', b.dataset.type === 'move'));
   selected = item;
   document.querySelector('#tip').textContent = 'Tap an empty spot to move this item';
   say('Now tap an empty glowing space to move this item.');
+}
+
+function chooseAnimalHome() {
+  document.querySelector('#modal-root').innerHTML='';
+  intent={type:'animal-home'};selected=null;
+  document.querySelector('#tip').textContent='Tap a clear glowing spot for the shared animal home';
+  say('Choose one spot where your animals will live together.');
+}
+
+async function animalAction(action,message) {
+  if(inventoryBusy)return;
+  inventoryBusy=true;
+  const oldLevel=oasis.land_level||1;
+  try {
+    oasis=await action();document.querySelector('#modal-root').innerHTML='';sync();
+    if((oasis.land_level||1)>oldLevel)game.overview();
+    say(message || (oasis.companion_item_id?'Your companion will follow you. The others stay home.':'Your companion is walking home.'));
+  } catch(error) {
+    const field=document.querySelector('#item-error');
+    if(field)field.textContent=error.message;else say(error.message);
+  } finally {inventoryBusy=false;}
+}
+
+function showAnimals() {
+  const animals=ownedAnimals(oasis),root=document.querySelector('#modal-root');
+  root.innerHTML=`<div class="scrim"><section class="item-dialog animal-dialog" role="dialog" aria-modal="true" aria-labelledby="animals-title">
+    <div class="kicker">YOUR OASIS</div><h2 id="animals-title">Your animals</h2>
+    <p>${animals.length?'Your animals share one home. Choose one companion to follow you.':'Buy an animal from the build menu to start your home group.'}</p>
+    <div class="animal-list">${animals.map((item,index)=>`<div class="animal-card"><img src="${asset(ITEMS[item.item_type].image)}" alt=""/><span>${itemLabel(item.item_type)} ${index+1}<small>${oasis.companion_item_id===item.id?'Your companion':'Lives at home'}</small></span><button type="button" data-pet="${item.id}">${oasis.companion_item_id===item.id?'Send home':'Follow me'}</button></div>`).join('')}</div>
+    ${animals.length?'<button type="button" id="move-animal-home" class="item-trade">Move animal home</button>':''}
+    <button type="button" id="close-animals" class="dialog-cancel">Close animals</button><div id="item-error" class="form-error" role="alert"></div>
+  </section></div>`;
+  root.querySelector('#close-animals').onclick=()=>{root.innerHTML='';};
+  root.querySelector('#move-animal-home')?.addEventListener('click',chooseAnimalHome);
+  root.querySelectorAll('[data-pet]').forEach(button=>button.onclick=()=>animalAction(()=>setAnimalCompanion(oasis.companion_item_id===button.dataset.pet?null:button.dataset.pet)));
 }
 
 app.innerHTML = '<div class="loading">Opening your Oasis…</div>';

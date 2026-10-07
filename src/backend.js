@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { ITEMS, capacity, landLevelForCount } from './catalog.js';
+import { isAnimal, animalHomeSlot } from './animals.js';
 
 const url = import.meta.env.VITE_SUPABASE_URL;
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
@@ -12,12 +13,16 @@ function readPreview() {
   try {
     const oasis = JSON.parse(localStorage.getItem(STORAGE_KEY)) || initial();
     oasis.land_level = Math.max(oasis.land_level || 1, landLevelForCount(oasis.items.length));
+    oasis.animal_home_slot = animalHomeSlot(oasis);
+    if (!oasis.items.some(i=>i.id===oasis.companion_item_id&&isAnimal(i.item_type))) oasis.companion_item_id=null;
     return oasis;
   }
   catch { return initial(); }
 }
 function savePreview(oasis) {
   oasis.land_level = Math.max(oasis.land_level || 1, landLevelForCount(oasis.items.length));
+  oasis.animal_home_slot = animalHomeSlot(oasis);
+  if (!oasis.items.some(i=>i.id===oasis.companion_item_id&&isAnimal(i.item_type))) oasis.companion_item_id=null;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(oasis));
   return oasis;
 }
@@ -40,7 +45,7 @@ export async function enterOasis() {
     if (error) errorMessage(error);
     history.replaceState(null, '', location.pathname);
   }
-  const { data, error } = await client.from('oases').select('id,oasis_name,avatar,stars,land_level,items(id,item_type,slot_index)').single();
+  const { data, error } = await client.from('oases').select('id,oasis_name,avatar,stars,land_level,animal_home_slot,companion_item_id,items:items!items_oasis_id_fkey(id,item_type,slot_index)').single();
   if (error) throw new Error(invite ? error.message : 'Open your personal Oasis link to enter.');
   return data;
 }
@@ -57,7 +62,16 @@ export async function buyItem(itemType, slotIndex) {
     const oasis = readPreview();
     const cost = ITEMS[itemType]?.cost;
     if (!cost || !Number.isInteger(slotIndex) || slotIndex < 0 || slotIndex >= capacity(oasis)) throw new Error('That land has not opened yet.');
-    if (oasis.stars < cost || oasis.items.some(x => x.slot_index === slotIndex)) throw new Error('That spot is unavailable or you need more stars.');
+    if (oasis.stars < cost) throw new Error('Save more stars to buy this item.');
+    const occupant = oasis.items.find(x=>x.slot_index===slotIndex);
+    if (!isAnimal(itemType) && slotIndex===animalHomeSlot(oasis)) throw new Error('Move the animal home before building here.');
+    if (occupant) {
+      if (!isAnimal(occupant.item_type)) throw new Error('That spot is occupied.');
+      const free = Array.from({length:capacity(oasis)},(_,i)=>i).find(i=>!oasis.items.some(x=>x.slot_index===i));
+      if (free==null) throw new Error('Your inventory is full.');
+      if (isAnimal(itemType)) slotIndex=free; else occupant.slot_index=free;
+    }
+    if (isAnimal(itemType) && oasis.animal_home_slot==null) oasis.animal_home_slot=slotIndex;
     oasis.stars -= cost;
     oasis.items.push({ id: crypto.randomUUID(), item_type: itemType, slot_index: slotIndex });
     return savePreview(oasis);
@@ -71,9 +85,15 @@ export async function moveItem(itemId, slotIndex) {
   if (preview) {
     const oasis = readPreview();
     if (!Number.isInteger(slotIndex) || slotIndex < 0 || slotIndex >= capacity(oasis)) throw new Error('That land has not opened yet.');
-    if (oasis.items.some(x => x.slot_index === slotIndex)) throw new Error('That spot is occupied.');
     const item = oasis.items.find(x => x.id === itemId);
     if (!item) throw new Error('Item not found.');
+    if (item.slot_index===slotIndex) return savePreview(oasis);
+    if (!isAnimal(item.item_type) && slotIndex===animalHomeSlot(oasis)) throw new Error('Move the animal home before building here.');
+    const occupant=oasis.items.find(x=>x.slot_index===slotIndex);
+    if (occupant) {
+      if (isAnimal(item.item_type)||!isAnimal(occupant.item_type)) throw new Error('That spot is occupied.');
+      occupant.slot_index=item.slot_index;
+    }
     item.slot_index = slotIndex;
     return savePreview(oasis);
   }
@@ -123,4 +143,27 @@ export async function resolveTrade(offer, accept, paymentItem = null) {
   });
   if (error) errorMessage(error);
   return { status: data, oasis: await enterOasis() };
+}
+
+export async function setAnimalHome(slot) {
+  if (preview) {
+    const oasis=readPreview();
+    if(!Number.isInteger(slot)||slot<0||slot>=capacity(oasis)) throw new Error('That land has not opened yet.');
+    if(!oasis.items.some(i=>isAnimal(i.item_type))) throw new Error('Buy an animal first.');
+    if(oasis.items.some(i=>i.slot_index===slot&&!isAnimal(i.item_type))) throw new Error('Choose a clear spot for the animal home.');
+    oasis.animal_home_slot=slot;return savePreview(oasis);
+  }
+  const {error}=await client.rpc('set_animal_home',{p_slot:slot});
+  if(error) errorMessage(error);
+  return enterOasis();
+}
+export async function setAnimalCompanion(itemId) {
+  if(preview) {
+    const oasis=readPreview();
+    if(itemId&&!oasis.items.some(i=>i.id===itemId&&isAnimal(i.item_type))) throw new Error('Choose an animal you own.');
+    oasis.companion_item_id=itemId;return savePreview(oasis);
+  }
+  const {error}=await client.rpc('set_animal_companion',{p_item:itemId});
+  if(error) errorMessage(error);
+  return enterOasis();
 }

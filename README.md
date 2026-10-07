@@ -19,7 +19,9 @@ The pond, waterfall, tents, date palms and baby goats share one continuous lands
 | Canvas tent | 4 stars | 2 stars |
 | Baby goat | 8 stars | 4 stars |
 
-Baby goats walk, pause and hop near their saved spot, staying on dry ground.
+Animals share one home area. Open **Animals** below the scene to choose one companion with **Follow me**, send it home, or move the shared home to a clear glowing spot. Existing goats gather automatically, and additional goats join the same home. They walk, rest and take dry routes around the pond. Changing companions sends the previous one walking home. Home and companion choices save across reloads. The animal menu also works when an animal is off screen.
+
+Tap a goat for individual selling/trading and **Add another baby goat**. Visually vacated animal positions can be reused for buildings without losing animals. Animals still count toward inventory capacity and land expansion. A fenced pen, feeding and longer daily routines are later additions.
 
 More ground opens at 6, 14 and 22 owned items, adding eight spots each time, up to 32. Opened land stays yours after selling or trading. There are no separate land screens.
 
@@ -43,3 +45,5 @@ UI tests require Playwright through the primary runtime. Set `OASIS_BROWSER_EXEC
 `public/assets/oasis-expanded.webp` is the continuous terrain asset. It was made using built-in imagegen and optimized for browser delivery. Prompt: extend the existing illustrated Oasis into one continuous landscape with its pond and waterfall at the heart, matching golden sand, rocky palm clusters, clear building areas, a consistent elevated camera, and no buildings, animals, people or interface.
 
 Phaser renders one terrain texture and places purchased objects over it. Item locations are saved as stable slot IDs rather than screen pixels. Vehicles and the connected class map remain future work.
+
+`src/animals.js` and `src/animal-life.js` define shared home, herd, rest, companion and return behavior for all animal species. The item catalog supplies each species’ art, animation frames, dimensions and movement speed. New species also need their allowed type and price registered in the database. `tests/animal-homes.sql` verifies ownership, grouped purchases, slot reuse, pending-trade preservation and sale/transfer cleanup in a rolled-back transaction. `tests/animals-ui.mjs` checks grouping, home changes, following around the pond, switching/dismissal, reloads, shared-home purchases and phone layout.
