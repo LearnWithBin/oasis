@@ -77,7 +77,7 @@ function sync() {
   document.querySelector('#stars').textContent = oasis.stars;
   document.querySelector('#egg-basket').innerHTML=`${eggIcon} ${oasis.eggs||0} ${(oasis.eggs||0)===1?'egg':'eggs'}`;
   document.querySelector('#title').textContent = oasis.oasis_name || 'Your Oasis';
-  document.querySelector('#world-avatar').innerHTML = avatarMarkup(oasis.avatar);
+  document.querySelector('#world-avatar').innerHTML = avatarMarkup(oasis.avatar, { eggs: oasis.eggs || 0 });
   document.querySelector('#world-status').textContent = `${oasis.items.length} / ${capacity(oasis)} items`;
   document.querySelector('#land-progress').textContent = (oasis.land_level || 1) < 4 ? 'Your land grows as you build' : 'Room for 32 items';
   game?.refresh();

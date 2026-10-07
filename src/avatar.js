@@ -1,7 +1,7 @@
 // One character illustration for both the editor and the world. Colors are
 // selected from the server's fixed palette before they reach this markup.
-export function avatarMarkup({ skin, hair, clothes }) {
-  return `<svg class="character" viewBox="0 0 160 190" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Your Oasis character">
+export function avatarMarkup({ skin, hair, clothes }, { eggs = 0 } = {}) {
+  return `<svg class="character" viewBox="0 0 160 190" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Your Oasis character${eggs > 0 ? ' carrying an egg basket' : ''}">
     <defs>
       <linearGradient id="shirt" x2=".85" y2="1"><stop stop-color="${clothes}"/><stop offset="1" stop-color="${clothes}" stop-opacity=".72"/></linearGradient>
       <linearGradient id="face" x2=".85" y2="1"><stop stop-color="#fff" stop-opacity=".25"/><stop offset=".45" stop-color="${skin}"/><stop offset="1" stop-color="${skin}"/></linearGradient>
@@ -27,6 +27,17 @@ export function avatarMarkup({ skin, hair, clothes }) {
       <path d="M79 68q-3 7 1 8" fill="none" stroke="#704936" stroke-opacity=".65" stroke-width="1.7" stroke-linecap="round"/>
       <path d="M73 82q7 6 14 0" fill="none" stroke="#713c3b" stroke-width="2.3" stroke-linecap="round"/>
       <ellipse cx="56" cy="77" rx="6" ry="3" fill="#df7770" opacity=".25"/><ellipse cx="104" cy="77" rx="6" ry="3" fill="#df7770" opacity=".25"/>
+      ${eggs > 0 ? `<g data-basket="eggs">
+        <path d="M105 145q0-28 17-28t17 28" fill="none" stroke="#79512e" stroke-width="5"/>
+        <ellipse cx="122" cy="145" rx="23" ry="7" fill="#76512e"/>
+        <ellipse cx="112" cy="140" rx="6" ry="9" transform="rotate(-18 112 140)" fill="#fff3d5" stroke="#d7c39b"/>
+        <ellipse cx="123" cy="138" rx="6" ry="9" fill="#f9ead0" stroke="#d7c39b"/>
+        <ellipse cx="134" cy="141" rx="6" ry="8" transform="rotate(18 134 141)" fill="#fff8e8" stroke="#d7c39b"/>
+        <path d="M99 144l5 22q18 9 36 0l5-22q-23 9-46 0z" fill="#bd8747" stroke="#79512e" stroke-width="2"/>
+        <path d="M104 152q18 7 36 0m-34 8q16 6 32 0m-27-11 2 17m9-15v18m10-20-2 17" fill="none" stroke="#e2b472" stroke-width="2"/>
+        <path d="M116 137l5-10" fill="none" stroke="${skin}" stroke-width="10" stroke-linecap="round"/>
+        <ellipse cx="122" cy="126" rx="6" ry="5" fill="${skin}"/>
+      </g>` : ''}
     </g>
   </svg>`;
 }

@@ -5,6 +5,7 @@ import { isAnimal, animalHomeSlot, ownedAnimals } from './animals.js';
 import { isPen, ownedPens, penResidents, penLocationAvailable, buildingClearOfPens, fenceClear } from './pens.js';
 import { drawPen } from './pen-view.js';
 import { AnimalLife } from './animal-life.js';
+import { PondWater } from './pond-water.js';
 import { CORE_WIDTH as W, CORE_HEIGHT as H, WORLD_SPOTS, worldBounds } from './world.js';
 const asset = name => `${import.meta.env.BASE_URL}assets/${name}`;
 
@@ -90,6 +91,7 @@ export function mountGame(host, getState, onSpot, onItem, onWalk, onProjection, 
       const state=getState(),level=state.land_level||1;
       this.bounds=worldBounds(level);
       this.add.image(W/2,H,'terrain');
+      this.water=new PondWater(this);
       const homeSlot=animalHomeSlot(state);
       this.penViews=ownedPens(state).map(pen=>drawPen(this,pen,penResidents(state,pen).length,()=>onItem(pen)));
       this.game.canvas.dataset.pens=JSON.stringify(ownedPens(state).map(p=>({id:p.id,slot:p.slot_index,count:penResidents(state,p).length})));
@@ -161,6 +163,7 @@ export function mountGame(host, getState, onSpot, onItem, onWalk, onProjection, 
       if(this.follow){this.center.x=Phaser.Math.Linear(this.center.x,this.player.x,.12);this.center.y=Phaser.Math.Linear(this.center.y,this.player.y,.12);this.applyCamera();}
       const last=this.trail.at(-1);
       if(Math.hypot(this.player.x-last.x,this.player.y-last.y)>18){this.trail.push({...this.player});if(this.trail.length>200)this.trail.shift();}
+      this.water.update(time);
       this.life.update(time,delta,this.player,this.trail);
       for(const pen of this.penViews||[])pen.update(this.player,this.life.nodes);
       const cam=this.cameras.main;

@@ -41,6 +41,7 @@ const waitNearHome=async()=>page.waitForFunction(()=>JSON.parse(document.querySe
 try {
  await page.goto('http://127.0.0.1:5184/oasis/?preview=1');
  await page.waitForFunction(()=>document.querySelector('canvas')?.dataset.animals);
+ assert.equal(await page.locator('#world-avatar [data-basket]').count(),0,'no egg basket before collection');
  await page.locator('[data-type="chicken"]').click();await spot(.56,1.07);
  await page.waitForFunction(key=>JSON.parse(localStorage.getItem(key)).items.some(i=>i.item_type==='chicken'),key);
  const hen=(await stored()).items.find(i=>i.item_type==='chicken');
@@ -64,9 +65,11 @@ try {
  await page.waitForFunction(id=>{const a=JSON.parse(document.querySelector('canvas').dataset.animals).find(a=>a.id===id);return Math.abs((a.x-.35)*1536)<150&&Math.abs((a.y-1.18)*1024)<90;},hen.id);
  await page.getByRole('button',{name:'Animals',exact:true}).click();await page.locator(`[data-pen="${coop.id}"]`).click();
  await page.getByRole('button',{name:'Collect 1 egg',exact:true}).click();
+ assert.equal(await page.locator('#world-avatar [data-basket]').count(),1,'basket appears immediately in avatar hand');
  assert.equal((await stored()).eggs,1);assert.equal((await stored()).stars,32,'eggs do not change homework stars');
  await page.reload();await page.waitForFunction(()=>document.querySelector('canvas')?.dataset.animals);
  assert.equal((await stored()).eggs,1,'basket persists');
+ assert.equal(await page.locator('#world-avatar [data-basket]').count(),1,'carried basket survives reload');
  await page.getByRole('button',{name:'Animals',exact:true}).click();await page.locator(`[data-pen="${coop.id}"]`).click();
  assert.ok(await page.getByRole('button',{name:'Collect 1 egg',exact:true}).isDisabled(),'daily cooldown persists');
  await page.getByRole('button',{name:'Keep it here',exact:true}).click();
@@ -76,6 +79,7 @@ try {
  await page.getByRole('button',{name:'Animals',exact:true}).click();await page.locator(`[data-pen="${coop.id}"]`).click();
  await page.screenshot({path:'/tmp/oasis-chickens-phone.png',fullPage:true});
  await page.getByRole('button',{name:'Collect 1 egg',exact:true}).click();assert.equal((await stored()).eggs,2);
+ await page.screenshot({path:'/tmp/oasis-basket-phone.png',fullPage:true});
  assert.equal((await stored()).items.filter(i=>i.item_type==='goat').length,3,'goats preserved');
  assert.ok((await stored()).items.filter(i=>i.item_type==='goat').every(i=>i.pen_item_id==='goat-pen'));
  assert.deepEqual(errors,[]);
