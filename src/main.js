@@ -3,11 +3,14 @@ import { enterOasis, updateProfile, buyItem, moveItem, sellItem, isPreview } fro
 import { mountGame } from './game.js';
 import { avatarMarkup } from './avatar.js';
 import { mountTrading } from './trading.js';
+import { ITEMS, LAND_NAMES, itemLabel } from './catalog.js';
+import { isDryGround } from './ground.js';
 const asset = name => `${import.meta.env.BASE_URL}assets/${name}`;
 
 const app = document.querySelector('#app');
 let oasis, game, intent = { type: 'buy', item: 'palms' }, selected = null;
-let avatarPosition = { x: 0.45, y: 0.77 }, walkTimer;
+let avatarPosition = { x: 0.45, y: 0.77 }, walkTimer, currentLand = 0;
+const landPositions = {};
 const trading = mountTrading({ getOasis: () => oasis, setOasis: data => { oasis = data; sync(); }, say });
 const skinOptions = ['#7a4b33', '#a86843', '#d49a6c', '#efc299'];
 const hairOptions = ['#191719', '#493128', '#7a4932', '#e8cf86', '#e7eaf0'];
@@ -27,9 +30,11 @@ function shell() {
     <header class="topbar"><div class="brand"><span class="brand-icon">✦</span><div><small>LEARNWITHBIN</small><strong>My Oasis</strong></div></div>
       <div class="top-actions"><div class="star-balance"><span>★</span> <b id="stars">0</b> <small>STARS</small></div><button id="edit" class="round" title="Edit your name and avatar">⚙</button></div></header>
     <section class="stage"><div id="scene"></div><div class="world-avatar" id="world-avatar"></div><div class="scene-title"><span>MY LITTLE WORLD</span><h1 id="title"></h1></div><div class="welcome-tip" id="tip">Tap sand to walk · glowing spaces to build</div></section>
+    <nav id="land-nav" class="land-nav" aria-label="Explore your land"></nav>
     <nav class="shop" aria-label="Build menu"><div class="shop-heading"><b>Build your Oasis</b><span>Choose an item, then tap a glowing spot</span></div>
       <button class="shop-item active" data-type="palms"><img src="${asset('date-palms.webp')}" alt="Date palms"/><span>Date palms</span><b>★ 2</b></button>
       <button class="shop-item" data-type="tent"><img src="${asset('tent.webp')}" alt="Canvas tent"/><span>Canvas tent</span><b>★ 4</b></button>
+      <button class="shop-item" data-type="goat"><img src="${asset('baby-goat.svg')}" alt="Baby goat"/><span>Baby goat</span><b>★ 8</b></button>
       <button class="shop-item move" data-type="move"><span class="move-icon">↔</span><span>Rearrange</span><small>free</small></button>
       <button class="shop-item trades" id="class-trades" data-type="trade"><span class="move-icon">⇄</span><span>Class trades</span><small>items or stars</small><b id="trade-count" hidden></b></button>
     </nav><div id="toast" class="toast" role="status" hidden></div>
@@ -58,7 +63,9 @@ function sync() {
   document.querySelector('#stars').textContent = oasis.stars;
   document.querySelector('#title').textContent = oasis.oasis_name || 'Your Oasis';
   document.querySelector('#world-avatar').innerHTML = avatarMarkup(oasis.avatar);
+  renderLandNav();
   positionAvatar();
+  game?.setLand(currentLand);
   game?.refresh();
 }
 
@@ -68,33 +75,31 @@ function positionAvatar() {
   avatar.style.top = `${avatarPosition.y * 100}%`;
 }
 
-// Trace the water in the background art at the character's feet. Their head
-// and shoulders can reach over the edge, but their feet stay on dry ground.
-const pondOutline = [
-  [.39, .29], [.48, .27], [.59, .29], [.69, .31], [.74, .37],
-  [.71, .44], [.78, .49], [.80, .54], [.75, .56], [.70, .54],
-  [.68, .58], [.61, .61], [.55, .63], [.47, .60], [.39, .56],
-  [.31, .51], [.29, .46], [.35, .39], [.36, .34]
-];
-
-function insideOutline(x, y, outline) {
-  let inside = false;
-  for (let i = 0, j = outline.length - 1; i < outline.length; j = i++) {
-    const [xi, yi] = outline[i], [xj, yj] = outline[j];
-    if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
-  }
-  return inside;
+function renderLandNav() {
+  const level = oasis.land_level || 1;
+  currentLand = Math.min(currentLand, level - 1);
+  document.querySelector('.scene-title span').textContent = currentLand === 0 ? 'MY LITTLE WORLD' : LAND_NAMES[currentLand].toUpperCase();
+  const nav = document.querySelector('#land-nav');
+  nav.innerHTML = LAND_NAMES.slice(0, level).map((name, index) => {
+    const count = oasis.items.filter(item => Math.floor(item.slot_index / 8) === index).length;
+    return `<button type="button" data-land="${index}" aria-pressed="${currentLand === index}">${name} <small>${count}/8</small></button>`;
+  }).join('') + `<span class="land-progress">${level < 4 ? 'More land opens as you build' : 'All 32 spots open'}</span>`;
+  nav.querySelectorAll('button').forEach(button => button.onclick = () => {
+    if (document.querySelector('.scrim')) return;
+    landPositions[currentLand] = { ...avatarPosition };
+    currentLand = Number(button.dataset.land);
+    avatarPosition = landPositions[currentLand] || { x: .45, y: .77 };
+    clearTimeout(walkTimer);
+    document.querySelector('#world-avatar').classList.remove('walking');
+    document.querySelector('#world-avatar').style.setProperty('--walk-time', '0s');
+    sync();
+  });
 }
 
-// Sample the whole route so a long tap cannot send them across the pond;
-// nearby taps let them walk right up to and around the shoreline.
+// Sample the whole route, preserving the original water-edge behavior at home.
 function isDrySand(x, y) {
   if (x < .06 || x > .94 || y < .12 || y > .91) return false;
-  const feetY = y + .08;
-  // The dry ledge above the waterfall is walkable too. The traced pond
-  // boundary already keeps feet out of the water; a separate rectangle
-  // around the waterfall also blocked this ledge.
-  return !insideOutline(x, feetY, pondOutline);
+  return isDryGround(x, y + .08, currentLand);
 }
 
 function handleWalk(x, y) {
@@ -172,7 +177,13 @@ async function handleSpot(index) {
       if (!selected) return say('Tap an item first, then choose where to move it.');
       oasis = await moveItem(selected.id, index); selected = null; say('Your item has moved.');
     } else {
-      oasis = await buyItem(intent.item, index); say(`Added ${intent.item === 'tent' ? 'a tent' : 'date palms'} to your Oasis!`);
+      const oldLevel = oasis.land_level || 1;
+      oasis = await buyItem(intent.item, index);
+      if ((oasis.land_level || 1) > oldLevel) {
+        landPositions[currentLand] = { ...avatarPosition };
+        currentLand = oasis.land_level - 1; avatarPosition = { x: .45, y: .77 };
+        say('New land opened! More room for your Oasis.');
+      } else say(intent.item === 'goat' ? 'Your baby goat is here! Watch it explore.' : `Added ${itemLabel(intent.item).toLowerCase()} to your Oasis!`);
     }
     sync();
   } catch (error) { say(error.message); }
@@ -182,8 +193,8 @@ function handleItem(item) {
   if (document.querySelector('.scrim')) return;
   if (intent.type === 'move') return selectItemToMove(item);
   const root = document.querySelector('#modal-root');
-  const label = item.item_type === 'tent' ? 'Canvas tent' : 'Date palms';
-  const refund = item.item_type === 'tent' ? 2 : 1;
+  const label = itemLabel(item.item_type);
+  const refund = ITEMS[item.item_type].refund;
   root.innerHTML = `<div class="scrim"><section class="item-dialog" role="dialog" aria-modal="true" aria-labelledby="item-dialog-title">
     <div class="kicker">YOUR OASIS</div><h2 id="item-dialog-title">${label}</h2>
     <p>What would you like to do with this item?</p>

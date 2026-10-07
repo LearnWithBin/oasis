@@ -1,6 +1,6 @@
 # LearnWithBin Oasis
 
-Permanent Phaser game foundation for Sister Bin’s class. The first release includes a fixed-angle oasis scene, named persistent personal worlds, customizable always-visible avatars, six welcome stars, purchasable/rearrangeable tents and date palms, selling back for stars, and classmate trading. One source tree supports the private preview and the connected student game.
+Permanent Phaser game foundation for Sister Bin’s class. The first release includes a fixed-angle oasis scene, named persistent personal worlds, customizable always-visible avatars, six welcome stars, purchasable/rearrangeable tents and date palms, selling back for stars, baby goats, permanent land expansion, and classmate trading. One source tree supports the private preview and the connected student game.
 
 ## Run the private preview
 
@@ -13,7 +13,7 @@ Permanent Phaser game foundation for Sister Bin’s class. The first release inc
 3. The first host is GitHub Pages at `https://learnwithbin.github.io/oasis/`. The public repository is named `oasis`. The checked-in `docs/` folder is the published game; source files remain in the same repository for permanent development. Set Pages source to **Deploy from a branch**, branch **main**, folder **/docs**. Use `npm run build:pages` after changes to rebuild the published folder. Builds now refuse to proceed without `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`. The working local copy has `.env.local` configured, but that file is intentionally excluded from the repository and archive. A publishable key is safe to ship in browser code; never add a service role key.
 4. Five student links and one separate teacher Test link have been created and saved outside this public repository. Do not rerun `supabase/create-student-links.sql` for this class. The teacher Test Oasis is in its own class. Send each child only their private link when the teacher is ready. The link is a bearer credential; anyone holding it can take over that Oasis, so share privately with parents. Opening it on another device reassigns access to the latest device.
 
-The current database stores `class_id`, so a new cohort can be created without mixing its oases or future trades. It deliberately records no child names. Oasis names and avatar colors are chosen by students. SQL functions enforce prices, balance, ownership, and slot constraints; direct client edits to stars are denied. The `award_stars` function is reserved for a trusted, idempotent score importer after Base44 results and identity mapping have been verified. Automatic LearnWithBin awards and the historical import are connected; Bin has confirmed earning stars, buying and selling items. Vehicles, expansion and the connected class map remain future work.
+The current database stores `class_id`, so a new cohort can be created without mixing its oases or future trades. It deliberately records no child names. Oasis names and avatar colors are chosen by students. SQL functions enforce prices, balance, ownership, and slot constraints; direct client edits to stars are denied. The `award_stars` function is reserved for a trusted, idempotent score importer after Base44 results and identity mapping have been verified. Automatic LearnWithBin awards and the historical import are connected; Bin has confirmed earning stars, buying and selling items. Vehicles and the connected class map remain future work.
 
 ## Agreed star conversion
 
@@ -34,3 +34,11 @@ The `classmate_trading` migration records the existing draft trading schema and 
 `tests/trading.sql` uses temporary fixtures and must run inside a transaction ending in `ROLLBACK`. It covers barter, star sales, full inventory, insufficient stars, ownership, class isolation, duplicate/stale/expired offers, repeat acceptance, decline/cancel, role permissions and balanced payments. `tests/trading-ui.mjs` exercises tablet/phone screens with mocked API responses and no real student accounts. It starts a local Vite server; run it with Playwright available through the primary runtime, or set `OASIS_BROWSER_EXECUTABLE` to an installed Chromium binary.
 
 Generated artwork in `public/assets` is project art. `oasis-background.webp` is 1536×1024 and game placements are stored as slot numbers independent of pixels, so improving art later does not move saved items.
+
+## Baby goats and extra land
+
+Baby goats cost 8 stars and sell back for 4. They walk, pause and hop near their saved spot, staying on dry land. They can be rearranged and traded like other items.
+
+Extra land opens automatically at 6, 14 and 22 owned items. The East, South and West dunes each add eight spots, for 32 total. Unlocks are permanent after selling or trading. Use the land tabs below the scene to explore; the original Oasis and its waterfall remain accessible.
+
+`tests/goats-land.sql` runs inside a rolled-back transaction and covers prices, refunds, ownership, permanent unlocks, locked slots, goat barter and expanded trade capacity. `tests/goats-ui.mjs` checks purchases, visible animation, reloads, refunds, unlocks and tablet/phone navigation in a private preview.

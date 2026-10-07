@@ -1,6 +1,6 @@
 import { enterOasis, getTrading, createTrade, resolveTrade } from './backend.js';
 
-const label = type => type === 'tent' ? 'Canvas tent' : 'Date palms';
+import { itemLabel as label, capacity } from './catalog.js';
 const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
 const statusLabels = { accepted: 'Trade complete', declined: 'Declined', cancelled: 'Cancelled', expired: 'Expired', invalid: 'Item no longer available' };
 
@@ -83,7 +83,7 @@ export function mountTrading({ getOasis, setOasis, say }) {
       sections.append(p);
     } else if (!getOasis().items.length) {
       const p = document.createElement('p'); p.className = 'trade-empty';
-      p.textContent = 'Build a tent or date palms to offer something of your own.'; sections.append(p);
+      p.textContent = 'Add an item or a baby goat to offer something of your own.'; sections.append(p);
     }
     for (const [title, offers, empty] of [
       ['Offers for you', data.offers.filter(o => o.direction === 'in' && o.status === 'pending'), 'No new offers.'],
@@ -131,7 +131,7 @@ export function mountTrading({ getOasis, setOasis, say }) {
       <h3>Make an offer</h3>
       <label for="trade-recipient">Send to</label><select id="trade-recipient" required>${data.peers.map(p => `<option value="${esc(p.id)}">${esc(p.oasis_name)}</option>`).join('')}</select>
       <label for="trade-item">Your item</label><select id="trade-item" required>${items.map(i => `<option value="${esc(i.id)}">${esc(label(i.item_type))} · spot ${i.slot_index + 1}</option>`).join('')}</select>
-      <label for="trade-wants">Ask for</label><select id="trade-wants"><option value="palms">Date palms</option><option value="tent">Canvas tent</option><option value="stars">Stars</option></select>
+      <label for="trade-wants">Ask for</label><select id="trade-wants"><option value="palms">Date palms</option><option value="tent">Canvas tent</option><option value="goat">Baby goat</option><option value="stars">Stars</option></select>
       <div id="trade-price-row" hidden><label for="trade-price">How many stars?</label><input id="trade-price" type="number" min="1" max="100" step="1" inputmode="numeric" value="2"/></div>
       <p class="trade-note">Your classmate chooses which matching item to give. Offers last 7 days. You can cancel while waiting.</p>
       <div class="trade-actions"><button type="submit">Review offer</button><button type="button" id="offer-back" class="trade-secondary">Back</button></div>
@@ -179,7 +179,7 @@ export function mountTrading({ getOasis, setOasis, say }) {
     panel.querySelector('#trade-error').textContent = '';
     const oasis = getOasis(), paymentItems = oasis.items.filter(i => i.item_type === offer.wanted_type);
     const stars = offer.star_price != null;
-    const eligible = stars ? oasis.stars >= offer.star_price && oasis.items.length < 8 : paymentItems.length > 0;
+    const eligible = stars ? oasis.stars >= offer.star_price && oasis.items.length < capacity(oasis) : paymentItems.length > 0;
     body.innerHTML = `<h3>Accept this trade?</h3><p class="trade-summary">Get <strong>${esc(label(offer.offered_type))}</strong> from <strong>${esc(offer.other_name)}</strong> for <strong>${esc(stars ? `★ ${offer.star_price} stars` : label(offer.wanted_type))}</strong>.</p>
       ${!stars && paymentItems.length ? `<label for="payment-item">Choose your item to give</label><select id="payment-item">${paymentItems.map(i => `<option value="${esc(i.id)}">${esc(label(i.item_type))} · spot ${i.slot_index + 1}</option>`).join('')}</select>` : ''}
       <p class="trade-note">${stars ? `You have ★ ${oasis.stars} stars. The item will go into an empty building spot.` : 'The incoming item will take the place of the item you give.'}</p>

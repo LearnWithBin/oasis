@@ -52,3 +52,11 @@
 .trade-panel .form-error{outline:none}
 .trade-panel button:focus-visible,.trade-panel select:focus-visible,.trade-panel input:focus-visible{outline:3px solid #177a96;outline-offset:3px}
 @media(max-width:700px){.trade-panel{padding:19px 16px}.trade-panel h2{font-size:26px}.trade-exchange{gap:8px}.trade-exchange strong{font-size:13px}.trade-actions button{padding:11px 10px;font-size:13px}}
+.land-nav{display:flex;align-items:center;gap:8px;padding:9px 15px;background:#123245;color:#d5e4e7;overflow-x:auto;min-height:53px;flex-shrink:0}
+.land-nav button{min-height:36px;flex-shrink:0;border:1px solid #658390;border-radius:18px;padding:7px 12px;background:#23495d;color:#fff;font-weight:700;font-size:12px}
+.land-nav button[aria-pressed="true"]{background:#ffe3ab;color:#254253;border-color:#ffe3ab}
+.land-nav small{margin-left:5px;opacity:.75;font-size:10px}
+.land-progress{font-size:11px;margin-left:auto;white-space:nowrap;color:#c4d6dd}
+.shop{overflow-x:auto;justify-content:flex-start}
+@media(min-width:1100px){.shop{justify-content:center}}
+@media(max-width:700px){.land-nav{padding:7px 10px;gap:7px;min-height:48px}.land-progress{font-size:10px}.land-nav button{font-size:11px;padding:7px 10px}.stage{max-height:none}}

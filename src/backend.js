@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { ITEMS, capacity, landLevelForCount } from './catalog.js';
 
 const url = import.meta.env.VITE_SUPABASE_URL;
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
@@ -8,10 +9,15 @@ const STORAGE_KEY = 'learnwithbin-oasis-preview-v1';
 const initial = () => ({ id: 'preview', oasis_name: '', avatar: { skin: '#a86843', hair: '#191719', clothes: '#ee9b52' }, stars: 6, items: [] });
 
 function readPreview() {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || initial(); }
+  try {
+    const oasis = JSON.parse(localStorage.getItem(STORAGE_KEY)) || initial();
+    oasis.land_level = Math.max(oasis.land_level || 1, landLevelForCount(oasis.items.length));
+    return oasis;
+  }
   catch { return initial(); }
 }
 function savePreview(oasis) {
+  oasis.land_level = Math.max(oasis.land_level || 1, landLevelForCount(oasis.items.length));
   localStorage.setItem(STORAGE_KEY, JSON.stringify(oasis));
   return oasis;
 }
@@ -34,7 +40,7 @@ export async function enterOasis() {
     if (error) errorMessage(error);
     history.replaceState(null, '', location.pathname);
   }
-  const { data, error } = await client.from('oases').select('id,oasis_name,avatar,stars,items(id,item_type,slot_index)').single();
+  const { data, error } = await client.from('oases').select('id,oasis_name,avatar,stars,land_level,items(id,item_type,slot_index)').single();
   if (error) throw new Error(invite ? error.message : 'Open your personal Oasis link to enter.');
   return data;
 }
@@ -49,7 +55,8 @@ export async function updateProfile(name, avatar) {
 export async function buyItem(itemType, slotIndex) {
   if (preview) {
     const oasis = readPreview();
-    const cost = itemType === 'tent' ? 4 : 2;
+    const cost = ITEMS[itemType]?.cost;
+    if (!cost || !Number.isInteger(slotIndex) || slotIndex < 0 || slotIndex >= capacity(oasis)) throw new Error('That land has not opened yet.');
     if (oasis.stars < cost || oasis.items.some(x => x.slot_index === slotIndex)) throw new Error('That spot is unavailable or you need more stars.');
     oasis.stars -= cost;
     oasis.items.push({ id: crypto.randomUUID(), item_type: itemType, slot_index: slotIndex });
@@ -63,6 +70,7 @@ export async function buyItem(itemType, slotIndex) {
 export async function moveItem(itemId, slotIndex) {
   if (preview) {
     const oasis = readPreview();
+    if (!Number.isInteger(slotIndex) || slotIndex < 0 || slotIndex >= capacity(oasis)) throw new Error('That land has not opened yet.');
     if (oasis.items.some(x => x.slot_index === slotIndex)) throw new Error('That spot is occupied.');
     const item = oasis.items.find(x => x.id === itemId);
     if (!item) throw new Error('Item not found.');
@@ -79,7 +87,7 @@ export async function sellItem(itemId) {
     const oasis = readPreview();
     const item = oasis.items.find(x => x.id === itemId);
     if (!item) throw new Error('That item is not in your Oasis.');
-    const refund = item.item_type === 'tent' ? 2 : 1;
+    const refund = ITEMS[item.item_type].refund;
     oasis.items = oasis.items.filter(x => x.id !== itemId);
     oasis.stars += refund;
     return { oasis: savePreview(oasis), refund };
