@@ -1,99 +1,172 @@
 import Phaser from 'phaser';
-import { dryRoute } from './ground.js';
+import { dryRoute, walkingRoute } from './ground.js';
+import { CORE_WIDTH as W, CORE_HEIGHT as H, WORLD_SPOTS, worldBounds } from './world.js';
 const asset = name => `${import.meta.env.BASE_URL}assets/${name}`;
 
-// The original eight locations never change. Additional areas use new slot IDs.
-export const SPOTS = [
-  { x: 0.16, y: 0.38 }, { x: 0.26, y: 0.68 },
-  { x: 0.42, y: 0.77 }, { x: 0.66, y: 0.76 },
-  { x: 0.83, y: 0.62 }, { x: 0.84, y: 0.36 },
-  { x: 0.12, y: 0.60 }, { x: 0.82, y: 0.20 }
-];
-export const DUNE_SPOTS = [
-  { x: .18, y: .32 }, { x: .42, y: .36 }, { x: .67, y: .31 }, { x: .85, y: .43 },
-  { x: .17, y: .68 }, { x: .38, y: .77 }, { x: .62, y: .69 }, { x: .83, y: .78 }
-];
-
-export function mountGame(host, getState, onSpot, onItem, onWalk) {
-  let scene, land = 0;
+export function mountGame(host, getState, onSpot, onItem, onWalk, onProjection) {
+  let scene, pendingPosition = {x:.45,y:.85};
+  const blocked = () => !!document.querySelector('.scrim');
   class OasisScene extends Phaser.Scene {
     constructor() { super('Oasis'); }
     preload() {
-      this.load.image('world', asset('oasis-background.webp'));
+      this.load.image('expanded-world', asset('oasis-expanded.webp'));
       this.load.image('tent', asset('tent.webp'));
       this.load.image('palms', asset('date-palms.webp'));
-      this.load.svg('goat', asset('baby-goat.svg'), { width: 240, height: 192 });
-      this.load.svg('goat-step', asset('baby-goat-step.svg'), { width: 240, height: 192 });
-      this.load.svg('dunes', asset('oasis-dunes.svg'), { width: 1536, height: 1024 });
+      this.load.svg('goat', asset('baby-goat.svg'), {width:240,height:192});
+      this.load.svg('goat-step', asset('baby-goat-step.svg'), {width:240,height:192});
     }
     create() {
       scene = this;
-      this.anims.create({ key: 'goat-walk', frames: [{ key: 'goat' }, { key: 'goat-step' }], frameRate: 6, repeat: -1 });
-      this.input.on('pointerdown', pointer => onWalk(pointer.worldX / 1536, pointer.worldY / 1024));
-      this.paint();
+      this.player = {x:pendingPosition.x*W,y:pendingPosition.y*H};
+      this.center = {x:W/2,y:H/2};
+      this.follow = false;
+      this.anims.create({key:'goat-walk',frames:[{key:'goat'},{key:'goat-step'}],frameRate:6,repeat:-1});
+      // One continuous illustrated terrain. Preserve a roomy foreground while
+      // keeping the pond aligned with the existing saved building locations.
+      const source=this.textures.get('expanded-world').getSourceImage();
+      const terrain=this.textures.createCanvas('terrain',W*2,H*2);
+      const split=source.height*700/1024;
+      terrain.context.drawImage(source,0,0,source.width,split,0,0,W*2,H);
+      terrain.context.drawImage(source,0,split,source.width,source.height-split,0,H,W*2,H);
+      terrain.refresh();
+      this.input.addPointer(1);
+      this.input.on('pointerdown',pointer=>{
+        if(blocked())return;
+        this.press={x:pointer.x,y:pointer.y,scrollX:this.cameras.main.scrollX,scrollY:this.cameras.main.scrollY,dragged:false,target:this.hitTarget};
+        this.hitTarget=null;
+        if(this.activeTouches().length===2) {this.pinchDistance=this.touchDistance();this.pinchZoom=this.cameras.main.zoom;this.press.dragged=true;}
+      });
+      this.input.on('pointermove',pointer=>{
+        if(blocked()||!this.press||!pointer.isDown)return;
+        if(this.activeTouches().length===2){
+          this.follow=false;this.press.dragged=true;
+          if(!this.pinchDistance){this.pinchDistance=this.touchDistance();this.pinchZoom=this.cameras.main.zoom;}
+          this.zoomTo(this.pinchZoom*this.touchDistance()/this.pinchDistance);return;
+        }
+        const dx=pointer.x-this.press.x,dy=pointer.y-this.press.y;
+        if(Math.hypot(dx,dy)>12)this.press.dragged=true;
+        if(!this.press.dragged)return;
+        this.follow=false;
+        const cam=this.cameras.main;
+        this.center={x:this.press.scrollX+W/2-dx/cam.zoom,y:this.press.scrollY+H/2-dy/cam.zoom};
+        this.applyCamera();
+      });
+      this.input.on('pointerup',pointer=>{
+        const press=this.press;this.press=null;this.pinchDistance=null;this.hitTarget=null;
+        if(blocked()||!press||press.dragged)return;
+        if(press.target)return press.target();
+        const p=this.cameras.main.getWorldPoint(pointer.x,pointer.y);
+        onWalk(p.x/W,p.y/H-.08);
+      });
+      this.input.on('wheel',(_pointer,_objects,_dx,dy)=>{if(!blocked())this.zoomTo(this.cameras.main.zoom*(dy>0?.9:1.1));});
+      this.game.canvas.addEventListener('wheel',event=>event.preventDefault(),{passive:false});
+      this.paint();this.overview();
+    }
+    activeTouches(){return this.input.manager.pointers.filter(p=>p.isDown&&p.wasTouch);}
+    touchDistance(){const [a,b]=this.activeTouches();return a&&b?Phaser.Math.Distance.Between(a.x,a.y,b.x,b.y):1;}
+    target(object,callback){
+      object.setInteractive({useHandCursor:true}).on('pointerdown',()=>{if(!blocked())this.hitTarget=callback;});
     }
     paint() {
-      this.tweens.killAll();
-      this.time.removeAllEvents();
+      this.ambient?.destroy();
+      this.goatTimers?.forEach(timer=>timer.remove());this.goatTimers=[];
+      this.goatTweens?.forEach(tween=>tween.stop());this.goatTweens=[];
       this.children.removeAll(true);
-      this.add.image(768, 512, land === 0 ? 'world' : 'dunes').setDisplaySize(1536, 1024);
-      const state = getState();
-      (land === 0 ? SPOTS : DUNE_SPOTS).forEach((spot, localIndex) => {
-        const index = land * 8 + localIndex;
-        const x = spot.x * 1536, y = spot.y * 1024;
-        const item = state.items.find(it => it.slot_index === index);
-        if (item?.item_type === 'goat') return this.addGoat(item, x, y);
-        if (item) {
-          const key = item.item_type === 'tent' ? 'tent' : 'palms';
-          const width = item.item_type === 'tent' ? 235 : 185;
-          const art = this.add.image(x, y, key).setOrigin(0.5, 0.88);
-          art.setDisplaySize(width, width * (art.height / art.width));
-          art.setInteractive({ useHandCursor: true }).on('pointerdown', (_pointer, _x, _y, event) => {
-            event.stopPropagation(); onItem(item);
-          });
+      const state=getState(),level=state.land_level||1;
+      this.bounds=worldBounds(level);
+      this.add.image(W/2,H,'terrain');
+      WORLD_SPOTS.slice(0,level*8).forEach((spot,index)=>{
+        const x=spot.x*W,y=spot.y*H;
+        const item=state.items.find(it=>it.slot_index===index);
+        if(item?.item_type==='goat')return this.addGoat(item,x,y);
+        if(item){
+          const width=item.item_type==='tent'?235:185;
+          const art=this.add.image(x,y,item.item_type).setOrigin(.5,.88);
+          art.setDisplaySize(width,width*art.height/art.width).setDepth(y);
+          this.target(art,()=>onItem(item));
         } else {
-          const ring = this.add.ellipse(x, y, 116, 46, 0xffe3ad, 0.22).setStrokeStyle(3, 0xffffff, 0.65);
-          ring.setInteractive({ useHandCursor: true }).on('pointerdown', (_pointer, _x, _y, event) => {
-            event.stopPropagation(); onSpot(index);
-          });
-          this.add.text(x, y - 7, '+', { fontSize: '32px', color: '#fff9e9', fontStyle: 'bold', stroke: '#987247', strokeThickness: 4 }).setOrigin(0.5);
+          const ring=this.add.ellipse(x,y,116,46,0xffe3ad,.25).setStrokeStyle(3,0xffffff,.8).setDepth(y);
+          this.target(ring,()=>onSpot(index));
+          this.add.text(x,y-7,'+',{fontSize:'32px',color:'#fff9e9',fontStyle:'bold',stroke:'#987247',strokeThickness:4}).setOrigin(.5).setDepth(y+1);
         }
       });
+      // A soft boundary shows the edge of your property without dividing the world.
+      if(level>1){
+        const b=this.bounds;
+        this.add.rectangle(b.x+b.width/2,b.height/2,b.width-35,b.height-35).setStrokeStyle(3,0xffedc2,.45).setDepth(1);
+      }
+      if(this.cameras.main.zoom<this.minZoom())this.overview();
+      this.applyCamera();
     }
-    addGoat(item, x, y) {
-      const shadow = this.add.ellipse(0, 0, 70, 15, 0x674b32, .22);
-      const goat = this.add.sprite(0, 0, 'goat').setOrigin(.5, .92).setDisplaySize(126, 101);
-      const animal = this.add.container(x, y, [shadow, goat]).setName(`goat:${item.id}`).setSize(150, 125);
-      goat.setInteractive({ useHandCursor: true }).on('pointerdown', (_pointer, _x, _y, event) => {
-        event.stopPropagation(); onItem(item);
-      });
-      const wander = () => {
-        if (!animal.active) return;
-        const start = { x: animal.x / 1536, y: animal.y / 1024 };
-        let target;
-        for (let attempt = 0; attempt < 12; attempt++) {
-          const candidate = { x: x / 1536 + Phaser.Math.FloatBetween(-.085, .085), y: y / 1024 + Phaser.Math.FloatBetween(-.055, .055) };
-          if (dryRoute(start, candidate, land)) { target = candidate; break; }
+    addGoat(item,x,y){
+      const shadow=this.add.ellipse(0,0,70,15,0x674b32,.22);
+      const goat=this.add.sprite(0,0,'goat').setOrigin(.5,.92).setDisplaySize(142,114);
+      const animal=this.add.container(x,y,[shadow,goat]).setName(`goat:${item.id}`).setDepth(y);
+      this.target(goat,()=>onItem(item));
+      const later=(delay,callback)=>this.goatTimers.push(this.time.delayedCall(delay,callback));
+      const wander=()=>{
+        if(!animal.active)return;
+        const start={x:animal.x/W,y:animal.y/H};let target;
+        for(let attempt=0;attempt<12;attempt++){
+          const candidate={x:x/W+Phaser.Math.FloatBetween(-.095,.095),y:y/H+Phaser.Math.FloatBetween(-.065,.065)};
+          if(dryRoute(start,candidate,getState().land_level||1)){target=candidate;break;}
         }
-        if (!target) { this.time.delayedCall(1800, wander); return; }
-        goat.setFlipX(target.x < start.x);
-        goat.play('goat-walk');
-        const travel = Math.max(900, Math.hypot(target.x - start.x, target.y - start.y) * 16000);
-        this.tweens.add({ targets: animal, x: target.x * 1536, y: target.y * 1024, duration: travel, ease: 'Sine.easeInOut', onComplete: () => {
+        if(!target){later(1800,wander);return;}
+        goat.setFlipX(target.x<start.x);goat.play('goat-walk');
+        this.goatTweens.push(this.tweens.add({targets:animal,x:target.x*W,y:target.y*H,duration:Math.max(900,Math.hypot(target.x-start.x,target.y-start.y)*16000),ease:'Sine.easeInOut',onUpdate:()=>animal.setDepth(animal.y),onComplete:()=>{
           goat.stop().setTexture('goat');
-          // A quick happy hop between walks. The shadow stays on the sand.
-          this.tweens.add({ targets: goat, y: -28, duration: 230, ease: 'Sine.easeOut', yoyo: true });
-          this.time.delayedCall(Phaser.Math.Between(1600, 3500), wander);
-        } });
+          this.goatTweens.push(this.tweens.add({targets:goat,y:-28,duration:230,ease:'Sine.easeOut',yoyo:true}));
+          later(Phaser.Math.Between(1600,3500),wander);
+        }}));
       };
-      this.time.delayedCall(Phaser.Math.Between(350, 1400), wander);
+      later(Phaser.Math.Between(350,1400),wander);
+    }
+    minZoom(){const b=this.bounds||worldBounds(1);return Math.max(W/b.width,H/b.height);}
+    zoomTo(zoom){this.cameras.main.setZoom(Phaser.Math.Clamp(zoom,this.minZoom(),1.6));this.applyCamera();}
+    overview(){const b=this.bounds;this.follow=false;this.center={x:b.x+b.width/2,y:b.height/2};this.cameras.main.setZoom(this.minZoom());this.applyCamera();}
+    followPlayer(){this.follow=true;this.zoomTo(Math.max(.95,this.cameras.main.zoom));this.center={...this.player};this.applyCamera();}
+    applyCamera(){
+      const cam=this.cameras.main,b=this.bounds;if(!b)return;
+      const halfW=W/cam.zoom/2,halfH=H/cam.zoom/2;
+      const clamp=(value,min,max)=>min>max?(min+max)/2:Phaser.Math.Clamp(value,min,max);
+      this.center.x=clamp(this.center.x,b.x+halfW,b.x+b.width-halfW);
+      this.center.y=clamp(this.center.y,halfH,b.height-halfH);
+      cam.centerOn(this.center.x,this.center.y);
+    }
+    walkTo(x,y){
+      const end={x,y:y+.08},start={x:this.player.x/W,y:this.player.y/H};
+      const route=walkingRoute(start,end,getState().land_level||1);
+      if(!route)return false;
+      this.walkTween?.stop();this.follow=true;
+      this.zoomTo(Math.max(.95,this.cameras.main.zoom));
+      let index=0;
+      const next=()=>{
+        const point=route[index++];
+        if(!point){this.isWalking=false;return;}
+        this.facingLeft=point.x*W<this.player.x;this.isWalking=true;
+        const distance=Phaser.Math.Distance.Between(this.player.x,this.player.y,point.x*W,point.y*H);
+        this.walkTween=this.tweens.add({targets:this.player,x:point.x*W,y:point.y*H,duration:Math.max(100,distance/300*1000),ease:'Linear',onComplete:next});
+      };
+      next();return true;
+    }
+    update(){
+      if(!this.player||!this.bounds)return;
+      if(this.follow){this.center.x=Phaser.Math.Linear(this.center.x,this.player.x,.12);this.center.y=Phaser.Math.Linear(this.center.y,this.player.y,.12);this.applyCamera();}
+      const cam=this.cameras.main;
+      // DOM character uses the same camera projection as every Phaser object.
+      const x=W/2+(this.player.x-this.center.x)*cam.zoom;
+      const y=H/2+(this.player.y-this.center.y-85)*cam.zoom;
+      onProjection({x:x/W,y:y/H,height:170*cam.zoom/H,walking:!!this.isWalking,facingLeft:!!this.facingLeft,worldX:this.player.x/W,worldY:this.player.y/H-.08,zoom:cam.zoom});
     }
   }
-  const game = new Phaser.Game({
-    type: Phaser.AUTO, parent: host, width: 1536, height: 1024,
-    scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
-    backgroundColor: '#d89c53', scene: [OasisScene],
-    render: { antialias: true, pixelArt: false }
-  });
-  return { setLand(index) { land = index; }, refresh() { scene?.paint(); }, destroy() { game.destroy(true); } };
+  const game=new Phaser.Game({type:Phaser.AUTO,parent:host,width:W,height:H,scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH},backgroundColor:'#d89c53',scene:[OasisScene],render:{antialias:true,pixelArt:false}});
+  return {
+    refresh(){scene?.paint();},
+    walkTo(x,y){return scene?.walkTo(x,y)??false;},
+    overview(){scene?.overview();},
+    follow(){scene?.followPlayer();},
+    zoom(direction){if(scene)scene.zoomTo(scene.cameras.main.zoom*(direction>0?1.2:1/1.2));},
+    setPosition(x,y){pendingPosition={x,y:y+.08};if(scene){scene.walkTween?.stop();scene.isWalking=false;scene.player={x:x*W,y:(y+.08)*H};scene.followPlayer();}},
+    destroy(){game.destroy(true);}
+  };
 }

@@ -4,6 +4,5 @@ export const ITEMS = {
   goat: { label: 'Baby goat', cost: 8, refund: 4, image: 'baby-goat.svg' }
 };
 export const itemLabel = type => ITEMS[type]?.label || 'Item';
-export const LAND_NAMES = ['Oasis', 'East dunes', 'South dunes', 'West dunes'];
 export const landLevelForCount = count => Math.min(4, 1 + Math.floor((count + 2) / 8));
 export const capacity = oasis => (oasis.land_level || 1) * 8;

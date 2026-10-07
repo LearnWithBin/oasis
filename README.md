@@ -1,44 +1,45 @@
 # LearnWithBin Oasis
 
-Permanent Phaser game foundation for Sister Bin’s class. The first release includes a fixed-angle oasis scene, named persistent personal worlds, customizable always-visible avatars, six welcome stars, purchasable/rearrangeable tents and date palms, selling back for stars, baby goats, permanent land expansion, and classmate trading. One source tree supports the private preview and the connected student game.
+A persistent Oasis building game. Earn stars, decorate your land, customize your character, and trade items with classmates.
 
-## Run the private preview
+## One growing world
 
-`npm install` then `npm run dev`. Open the local address with `?preview=1`. The preview saves to that browser only; it is **not** a student account or the production database.
+The pond, waterfall, tents, date palms and baby goats share one continuous landscape. New ground opens around the existing Oasis as you build. Saved item IDs and star balances carry forward; the original eight building positions stay in place.
 
-## Connect the real student game
+- Tap sand to walk. Your character finds a dry route around the pond, and the camera follows.
+- Drag the scenery to explore without moving your character or buying anything.
+- Pinch, or use **+ / −**, to zoom.
+- **Whole Oasis** shows the entire property; **Follow me** returns the view to your character.
+- Choose an item in the build menu, then tap a glowing space to place it.
+- Tap an owned item to rearrange it, sell it, or offer it in a class trade.
 
-1. The existing `LearnWithBin-Oasis` Supabase project has anonymous sign-ins enabled. The initial, private-functions, and server-grants migrations are applied.
-2. The `redeem-invite` Edge Function is already deployed. Keep its service role key on the server only; never put it in Vite variables or GitHub source. Supabase provides the URL, anon key and service role key to Edge Functions.
-3. The first host is GitHub Pages at `https://learnwithbin.github.io/oasis/`. The public repository is named `oasis`. The checked-in `docs/` folder is the published game; source files remain in the same repository for permanent development. Set Pages source to **Deploy from a branch**, branch **main**, folder **/docs**. Use `npm run build:pages` after changes to rebuild the published folder. Builds now refuse to proceed without `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`. The working local copy has `.env.local` configured, but that file is intentionally excluded from the repository and archive. A publishable key is safe to ship in browser code; never add a service role key.
-4. Five student links and one separate teacher Test link have been created and saved outside this public repository. Do not rerun `supabase/create-student-links.sql` for this class. The teacher Test Oasis is in its own class. Send each child only their private link when the teacher is ready. The link is a bearer credential; anyone holding it can take over that Oasis, so share privately with parents. Opening it on another device reassigns access to the latest device.
+| Item | Buy | Sell back |
+| --- | ---: | ---: |
+| Date palms | 2 stars | 1 star |
+| Canvas tent | 4 stars | 2 stars |
+| Baby goat | 8 stars | 4 stars |
 
-The current database stores `class_id`, so a new cohort can be created without mixing its oases or future trades. It deliberately records no child names. Oasis names and avatar colors are chosen by students. SQL functions enforce prices, balance, ownership, and slot constraints; direct client edits to stars are denied. The `award_stars` function is reserved for a trusted, idempotent score importer after Base44 results and identity mapping have been verified. Automatic LearnWithBin awards and the historical import are connected; Bin has confirmed earning stars, buying and selling items. Vehicles and the connected class map remain future work.
+Baby goats walk, pause and hop near their saved spot, staying on dry ground.
 
-## Agreed star conversion
+More ground opens at 6, 14 and 22 owned items, adding eight spots each time, up to 32. Opened land stays yours after selling or trading. There are no separate land screens.
 
-For a completed educational game, award `10 + round(10 × score ÷ maximum_score)` stars, capped at 10–20. Thus 150/190 and 4/5 each earn 18 stars. This normalizes games with different raw point totals and lets a student buy several current items per activity (tent: 4, palms: 2). The importer must use the actual maximum score for each activity, confirm completion, match known name variants to the correct student, and use the source result's unique ID for idempotency. Base44 historical records shown so far were created by Anonymous, so typed names alone are not proof of student identity. Teacher “Test” results belong only to the separate Test Oasis. Other adults who played for fun are not students and must not receive student awards.
+## Class trades
 
-For replays of the same activity, use the best completed score. An improvement awards only the difference in stars (for example, 18 then 19 means one additional star), preventing repeated full awards.
+Open **Class trades**, or tap an item and choose **Offer to a classmate**. Ask for another item type or 1–100 stars. Both sending and accepting have review screens. Recipients choose their matching item for barter. Offers last seven days and can be declined or cancelled. Nothing transfers until acceptance. Barter works with full inventories; a star purchase requires an empty spot.
 
-The Supabase `award_game_result` RPC implements this conversion and replay rule for a trusted server only. It records source result IDs to prevent duplicates. A rollback test verified 150/190 → 18, repeated import → 0, improved result → 1 extra, and 4/5 in a different game → 18. The trusted Base44 importer is connected to the private class-name mapping. Keep that mapping out of this public repository.
+## Local development and verification
 
-## Classmate trading
+Run `npm install`, then `npm run dev`. Append `?preview=1` to use the private browser-only preview. Rebuild the published game with `npm run build:pages`.
 
-Open **Class trades** in the build menu, or tap one of your items and choose **Offer to a classmate**. Choose a classmate, offer your item, and ask for another item type or 1–100 stars. Both sending and accepting have a review screen. The recipient chooses which matching item to give for barter. Offers last seven days; senders can cancel and recipients can decline.
+- `node tests/world-geometry.mjs` checks 32 stable positions, connected ground, expansion limits, routes around water and waterfall access.
+- `tests/goats-ui.mjs` checks preserved purchases, goat animation, camera follow, dragging, pinch zoom, expansion, reloads, refunds, waterfall access and phone/tablet layouts.
+- `tests/trading-ui.mjs` checks trading screens against mocked API responses.
+- `tests/trading.sql` and `tests/goats-land.sql` use temporary fixtures inside a transaction ending in `ROLLBACK`.
 
-Only claimed Oases in the same class appear. The teacher Test Oasis remains in its separate class and will not see the students as trade partners. Nothing transfers until acceptance. The database rechecks ownership, stars, space and class membership and moves both sides atomically. Barter replaces the items in their existing spots, including when both Oases are full. A star purchase needs an empty spot. Stale, expired, declined and cancelled offers transfer nothing.
+UI tests require Playwright through the primary runtime. Set `OASIS_BROWSER_EXECUTABLE` when using a separately installed Chromium executable.
 
-The `classmate_trading` migration records the existing draft trading schema and completes the RPCs. The public wrappers use invoker rights; privileged implementations stay in the private schema, with explicit caller and class checks. Inventory mutations lock Oasis rows before items/offers, and accepted payments record equal and opposite ledger entries. Direct access to trade tables is denied.
+## Artwork
 
-`tests/trading.sql` uses temporary fixtures and must run inside a transaction ending in `ROLLBACK`. It covers barter, star sales, full inventory, insufficient stars, ownership, class isolation, duplicate/stale/expired offers, repeat acceptance, decline/cancel, role permissions and balanced payments. `tests/trading-ui.mjs` exercises tablet/phone screens with mocked API responses and no real student accounts. It starts a local Vite server; run it with Playwright available through the primary runtime, or set `OASIS_BROWSER_EXECUTABLE` to an installed Chromium binary.
+`public/assets/oasis-expanded.webp` is the continuous terrain asset. It was made using built-in imagegen and optimized for browser delivery. Prompt: extend the existing illustrated Oasis into one continuous landscape with its pond and waterfall at the heart, matching golden sand, rocky palm clusters, clear building areas, a consistent elevated camera, and no buildings, animals, people or interface.
 
-Generated artwork in `public/assets` is project art. `oasis-background.webp` is 1536×1024 and game placements are stored as slot numbers independent of pixels, so improving art later does not move saved items.
-
-## Baby goats and extra land
-
-Baby goats cost 8 stars and sell back for 4. They walk, pause and hop near their saved spot, staying on dry land. They can be rearranged and traded like other items.
-
-Extra land opens automatically at 6, 14 and 22 owned items. The East, South and West dunes each add eight spots, for 32 total. Unlocks are permanent after selling or trading. Use the land tabs below the scene to explore; the original Oasis and its waterfall remain accessible.
-
-`tests/goats-land.sql` runs inside a rolled-back transaction and covers prices, refunds, ownership, permanent unlocks, locked slots, goat barter and expanded trade capacity. `tests/goats-ui.mjs` checks purchases, visible animation, reloads, refunds, unlocks and tablet/phone navigation in a private preview.
+Phaser renders one terrain texture and places purchased objects over it. Item locations are saved as stable slot IDs rather than screen pixels. Vehicles and the connected class map remain future work.

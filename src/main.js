@@ -3,14 +3,13 @@ import { enterOasis, updateProfile, buyItem, moveItem, sellItem, isPreview } fro
 import { mountGame } from './game.js';
 import { avatarMarkup } from './avatar.js';
 import { mountTrading } from './trading.js';
-import { ITEMS, LAND_NAMES, itemLabel } from './catalog.js';
-import { isDryGround } from './ground.js';
+import { ITEMS, itemLabel, capacity } from './catalog.js';
 const asset = name => `${import.meta.env.BASE_URL}assets/${name}`;
 
 const app = document.querySelector('#app');
 let oasis, game, intent = { type: 'buy', item: 'palms' }, selected = null;
-let avatarPosition = { x: 0.45, y: 0.77 }, walkTimer, currentLand = 0;
-const landPositions = {};
+let avatarPosition = { x: 0.45, y: 0.77 };
+let inventoryBusy = false;
 const trading = mountTrading({ getOasis: () => oasis, setOasis: data => { oasis = data; sync(); }, say });
 const skinOptions = ['#7a4b33', '#a86843', '#d49a6c', '#efc299'];
 const hairOptions = ['#191719', '#493128', '#7a4932', '#e8cf86', '#e7eaf0'];
@@ -29,8 +28,11 @@ function shell() {
   app.innerHTML = `<main class="shell">
     <header class="topbar"><div class="brand"><span class="brand-icon">✦</span><div><small>LEARNWITHBIN</small><strong>My Oasis</strong></div></div>
       <div class="top-actions"><div class="star-balance"><span>★</span> <b id="stars">0</b> <small>STARS</small></div><button id="edit" class="round" title="Edit your name and avatar">⚙</button></div></header>
-    <section class="stage"><div id="scene"></div><div class="world-avatar" id="world-avatar"></div><div class="scene-title"><span>MY LITTLE WORLD</span><h1 id="title"></h1></div><div class="welcome-tip" id="tip">Tap sand to walk · glowing spaces to build</div></section>
-    <nav id="land-nav" class="land-nav" aria-label="Explore your land"></nav>
+    <section class="stage"><div id="scene"></div><div class="world-avatar" id="world-avatar"></div><div class="scene-title"><span>MY LITTLE WORLD</span><h1 id="title"></h1></div><div class="welcome-tip" id="tip">Tap sand to walk · drag to explore</div></section>
+    <nav class="world-controls" aria-label="Explore your Oasis">
+      <div class="world-buttons"><button id="zoom-out" type="button" aria-label="Zoom out">−</button><button id="zoom-in" type="button" aria-label="Zoom in">+</button><button id="whole-oasis" type="button">Whole Oasis</button><button id="follow-me" type="button">Follow me</button></div>
+      <span class="world-status" id="world-status"></span><span class="land-progress" id="land-progress">Your land grows as you build</span>
+    </nav>
     <nav class="shop" aria-label="Build menu"><div class="shop-heading"><b>Build your Oasis</b><span>Choose an item, then tap a glowing spot</span></div>
       <button class="shop-item active" data-type="palms"><img src="${asset('date-palms.webp')}" alt="Date palms"/><span>Date palms</span><b>★ 2</b></button>
       <button class="shop-item" data-type="tent"><img src="${asset('tent.webp')}" alt="Canvas tent"/><span>Canvas tent</span><b>★ 4</b></button>
@@ -47,9 +49,13 @@ function shell() {
     const type = button.dataset.type;
     intent = type === 'move' ? { type: 'move' } : { type: 'buy', item: type };
     document.querySelectorAll('.shop-item').forEach(b => b.classList.toggle('active', b === button));
-    document.querySelector('#tip').textContent = type === 'move' ? 'Tap an item, then tap an empty spot' : 'Tap sand to walk · glowing spaces to build';
+    document.querySelector('#tip').textContent = type === 'move' ? 'Tap an item, then tap an empty spot' : 'Tap sand to walk · drag to explore';
   });
-  game = mountGame('scene', () => oasis, handleSpot, handleItem, handleWalk);
+  game = mountGame('scene', () => oasis, handleSpot, handleItem, handleWalk, projectAvatar);
+  document.querySelector('#zoom-in').onclick = () => game.zoom(1);
+  document.querySelector('#zoom-out').onclick = () => game.zoom(-1);
+  document.querySelector('#whole-oasis').onclick = () => game.overview();
+  document.querySelector('#follow-me').onclick = () => game.follow();
   document.addEventListener('keydown', handleWalkKey);
   sync();
   if (!oasis.oasis_name) showProfile();
@@ -63,65 +69,29 @@ function sync() {
   document.querySelector('#stars').textContent = oasis.stars;
   document.querySelector('#title').textContent = oasis.oasis_name || 'Your Oasis';
   document.querySelector('#world-avatar').innerHTML = avatarMarkup(oasis.avatar);
-  renderLandNav();
-  positionAvatar();
-  game?.setLand(currentLand);
+  document.querySelector('#world-status').textContent = `${oasis.items.length} / ${capacity(oasis)} spots`;
+  document.querySelector('#land-progress').textContent = (oasis.land_level || 1) < 4 ? 'Your land grows as you build' : 'Room for 32 items';
   game?.refresh();
 }
 
-function positionAvatar() {
+function projectAvatar(view) {
   const avatar = document.querySelector('#world-avatar');
-  avatar.style.left = `${avatarPosition.x * 100}%`;
-  avatar.style.top = `${avatarPosition.y * 100}%`;
-}
-
-function renderLandNav() {
-  const level = oasis.land_level || 1;
-  currentLand = Math.min(currentLand, level - 1);
-  document.querySelector('.scene-title span').textContent = currentLand === 0 ? 'MY LITTLE WORLD' : LAND_NAMES[currentLand].toUpperCase();
-  const nav = document.querySelector('#land-nav');
-  nav.innerHTML = LAND_NAMES.slice(0, level).map((name, index) => {
-    const count = oasis.items.filter(item => Math.floor(item.slot_index / 8) === index).length;
-    return `<button type="button" data-land="${index}" aria-pressed="${currentLand === index}">${name} <small>${count}/8</small></button>`;
-  }).join('') + `<span class="land-progress">${level < 4 ? 'More land opens as you build' : 'All 32 spots open'}</span>`;
-  nav.querySelectorAll('button').forEach(button => button.onclick = () => {
-    if (document.querySelector('.scrim')) return;
-    landPositions[currentLand] = { ...avatarPosition };
-    currentLand = Number(button.dataset.land);
-    avatarPosition = landPositions[currentLand] || { x: .45, y: .77 };
-    clearTimeout(walkTimer);
-    document.querySelector('#world-avatar').classList.remove('walking');
-    document.querySelector('#world-avatar').style.setProperty('--walk-time', '0s');
-    sync();
-  });
-}
-
-// Sample the whole route, preserving the original water-edge behavior at home.
-function isDrySand(x, y) {
-  if (x < .06 || x > .94 || y < .12 || y > .91) return false;
-  return isDryGround(x, y + .08, currentLand);
+  const canvas = document.querySelector('#scene canvas');
+  if (!canvas) return;
+  avatar.style.left = `${canvas.offsetLeft + view.x * canvas.clientWidth}px`;
+  avatar.style.top = `${canvas.offsetTop + view.y * canvas.clientHeight}px`;
+  avatar.style.height = `${view.height * canvas.clientHeight}px`;
+  avatar.classList.toggle('walking', view.walking);
+  avatar.classList.toggle('face-left', view.facingLeft);
+  avatarPosition = {x:view.worldX,y:view.worldY};
+  avatar.dataset.worldX = view.worldX;
+  avatar.dataset.worldY = view.worldY;
+  avatar.dataset.zoom = view.zoom;
 }
 
 function handleWalk(x, y) {
   if (document.querySelector('.scrim') || !oasis?.oasis_name) return;
-  const start = avatarPosition;
-  const distance = Math.hypot(x - start.x, y - start.y);
-  const steps = Math.max(1, Math.ceil(distance / .02));
-  for (let i = 1; i <= steps; i++) {
-    if (!isDrySand(start.x + (x - start.x) * i / steps, start.y + (y - start.y) * i / steps)) {
-      say('Walk around the water by tapping closer spots on the sand.');
-      return;
-    }
-  }
-  if (distance < .01) return;
-  const avatar = document.querySelector('#world-avatar');
-  clearTimeout(walkTimer);
-  avatar.style.setProperty('--walk-time', `${Math.min(2.8, Math.max(.25, distance * 5))}s`);
-  avatar.classList.toggle('face-left', x < start.x);
-  avatar.classList.add('walking');
-  avatarPosition = { x, y };
-  positionAvatar();
-  walkTimer = setTimeout(() => avatar.classList.remove('walking'), Math.min(2800, Math.max(250, distance * 5000)));
+  if (!game.walkTo(x,y)) say('Tap the sand inside your land to walk.');
 }
 
 function handleWalkKey(event) {
@@ -170,8 +140,10 @@ function showProfile() {
 }
 
 async function handleSpot(index) {
-  if (document.querySelector('.scrim')) return;
+  if (document.querySelector('.scrim') || inventoryBusy) return;
   if (!oasis.oasis_name) return showProfile();
+  inventoryBusy = true;
+  const oldLevelForView = oasis.land_level || 1;
   try {
     if (intent.type === 'move') {
       if (!selected) return say('Tap an item first, then choose where to move it.');
@@ -180,13 +152,12 @@ async function handleSpot(index) {
       const oldLevel = oasis.land_level || 1;
       oasis = await buyItem(intent.item, index);
       if ((oasis.land_level || 1) > oldLevel) {
-        landPositions[currentLand] = { ...avatarPosition };
-        currentLand = oasis.land_level - 1; avatarPosition = { x: .45, y: .77 };
-        say('New land opened! More room for your Oasis.');
+        say('Your Oasis grew! New ground is open around your land.');
       } else say(intent.item === 'goat' ? 'Your baby goat is here! Watch it explore.' : `Added ${itemLabel(intent.item).toLowerCase()} to your Oasis!`);
     }
     sync();
-  } catch (error) { say(error.message); }
+    if ((oasis.land_level || 1) > oldLevelForView) game.overview();
+  } catch (error) { say(error.message); } finally { inventoryBusy = false; }
 }
 
 function handleItem(item) {
