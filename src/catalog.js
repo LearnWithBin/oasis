@@ -1,5 +1,6 @@
 export const ITEMS = {
   palms: { label: 'Date palms', cost: 2, refund: 1, image: 'date-palms.webp' },
+  pen: { label: 'Animal pen', cost: 12, refund: 6, image: 'animal-pen.svg' },
   tent: { label: 'Canvas tent', cost: 4, refund: 2, image: 'tent.webp' },
   goat: { label: 'Baby goat', cost: 8, refund: 4, image: 'baby-goat.svg', animal: { texture: 'goat', step: 'goat-step', walkImage: 'baby-goat-step.svg', restImage: 'baby-goat-rest.svg', rest: 'goat-rest', width: 142, height: 114, speed: 350 } }
 };

@@ -46,7 +46,10 @@ try {
   assert.equal((await stored()).items.find(i=>i.item_type==='goat').slot_index,8);
   const p=await screen(.35,1.18),b=await page.locator('canvas').boundingBox();
   const clip={x:p.x-100,y:p.y-120,width:200,height:150};
-  const still=await page.screenshot({clip});await page.waitForTimeout(2400);
+  const still=await page.screenshot({clip});
+  const before=await page.evaluate(()=>JSON.parse(document.querySelector('canvas').dataset.animals)[0]);
+  await page.waitForFunction(before=>{const a=JSON.parse(document.querySelector('canvas').dataset.animals)[0];return Math.hypot((a.x-before.x)*1536,(a.y-before.y)*1024)>20||a.mode!==before.mode;},before,{timeout:20000});
+  await page.waitForTimeout(200);
   assert.ok(!still.equals(await page.screenshot({clip})),'goat should visibly animate');
   await page.screenshot({path:'/tmp/oasis-continuous-ipad.png',fullPage:true});
   await spot(.62,1.05);

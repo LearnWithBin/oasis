@@ -21,7 +21,8 @@ export function isDryGround(x, feetY, level = 1) {
   if (px < b.x + 64 || px > b.x + b.width - 64 || py < 123 || py > b.height - 40) return false;
   return !insideOutline(x, feetY, pondOutline);
 }
-export function dryRoute(start, end, level = 1) {
+export function dryRoute(start, end, level = 1, clear = () => true) {
+  if(!clear(start,end))return false;
   const steps = Math.max(1, Math.ceil(Math.hypot(end.x - start.x, end.y - start.y) / .015));
   for (let i = 0; i <= steps; i++) {
     if (!isDryGround(start.x + (end.x - start.x) * i / steps, start.y + (end.y - start.y) * i / steps, level)) return false;
@@ -30,9 +31,9 @@ export function dryRoute(start, end, level = 1) {
 }
 
 // Short routes around the pond, across both the original and newly opened ground.
-export function walkingRoute(start, end, level = 1) {
+export function walkingRoute(start, end, level = 1, clear = () => true) {
   if (!isDryGround(end.x, end.y, level)) return null;
-  if (dryRoute(start, end, level)) return [end];
+  if (dryRoute(start, end, level, clear)) return [end];
   const step = 48, b = worldBounds(level);
   const point = (x,y) => ({x:x*step/CORE_WIDTH,y:y*step/CORE_HEIGHT});
   const key = (x,y) => `${x},${y}`;
@@ -41,7 +42,7 @@ export function walkingRoute(start, end, level = 1) {
     const choices = [];
     for (let dx=-1;dx<=1;dx++) for(let dy=-1;dy<=1;dy++) {
       const q = point(x+dx,y+dy);
-      if (dryRoute(p,q,level)) choices.push({x:x+dx,y:y+dy,d:Math.hypot(q.x-p.x,q.y-p.y)});
+      if (dryRoute(p,q,level,clear)) choices.push({x:x+dx,y:y+dy,d:Math.hypot(q.x-p.x,q.y-p.y)});
     }
     return choices.sort((a,b)=>a.d-b.d)[0];
   };
@@ -60,7 +61,7 @@ export function walkingRoute(start, end, level = 1) {
       if (!dx && !dy) continue;
       const x=node.x+dx,y=node.y+dy,k=key(x,y),q=point(x,y);
       if (x*step<b.x+64 || x*step>b.x+b.width-64 || y*step<123 || y*step>b.height-40 || closed.has(k)) continue;
-      if (!dryRoute(point(node.x,node.y),q,level)) continue;
+      if (!dryRoute(point(node.x,node.y),q,level,clear)) continue;
       const g=node.g+Math.hypot(dx,dy);
       if (g >= (scores.get(k) ?? Infinity)) continue;
       scores.set(k,g);parents.set(k,id);
@@ -76,7 +77,7 @@ export function walkingRoute(start, end, level = 1) {
   const simple=[];let from=start;
   for(let i=0;i<route.length;) {
     let j=route.length-1;
-    while(j>i && !dryRoute(from,route[j],level)) j--;
+    while(j>i && !dryRoute(from,route[j],level,clear)) j--;
     simple.push(route[j]);from=route[j];i=j+1;
   }
   return simple;

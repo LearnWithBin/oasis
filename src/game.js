@@ -2,11 +2,13 @@ import Phaser from 'phaser';
 import { walkingRoute } from './ground.js';
 import { ITEMS } from './catalog.js';
 import { isAnimal, animalHomeSlot, ownedAnimals } from './animals.js';
+import { ownedPens, penResidents, penLocationAvailable, buildingClearOfPens, fenceClear } from './pens.js';
+import { drawPen } from './pen-view.js';
 import { AnimalLife } from './animal-life.js';
 import { CORE_WIDTH as W, CORE_HEIGHT as H, WORLD_SPOTS, worldBounds } from './world.js';
 const asset = name => `${import.meta.env.BASE_URL}assets/${name}`;
 
-export function mountGame(host, getState, onSpot, onItem, onWalk, onProjection) {
+export function mountGame(host, getState, onSpot, onItem, onWalk, onProjection, getIntent = () => null) {
   let scene, pendingPosition = {x:.45,y:.85};
   const blocked = () => !!document.querySelector('.scrim');
   class OasisScene extends Phaser.Scene {
@@ -15,6 +17,7 @@ export function mountGame(host, getState, onSpot, onItem, onWalk, onProjection) 
       this.load.image('expanded-world', asset('oasis-expanded.webp'));
       this.load.image('tent', asset('tent.webp'));
       this.load.image('palms', asset('date-palms.webp'));
+      this.load.svg('pen-shelter',asset('pen-shelter.svg'),{width:300,height:225});
       Object.values(ITEMS).filter(item=>item.animal).forEach(item=>{
         const config=item.animal;
         [[config.texture,item.image],[config.step,config.walkImage],[config.rest,config.restImage]].forEach(([key,file])=>{
@@ -87,10 +90,16 @@ export function mountGame(host, getState, onSpot, onItem, onWalk, onProjection) 
       this.bounds=worldBounds(level);
       this.add.image(W/2,H,'terrain');
       const homeSlot=animalHomeSlot(state);
+      this.penViews=ownedPens(state).map(pen=>drawPen(this,pen,penResidents(state,pen).length,()=>onItem(pen)));
+      this.game.canvas.dataset.pens=JSON.stringify(ownedPens(state).map(p=>({id:p.id,slot:p.slot_index,count:penResidents(state,p).length})));
+      const intent=getIntent();
+      const penPlacement=(intent?.type==='buy'&&intent.item==='pen')||(intent?.type==='move'&&intent.item==='pen');
       WORLD_SPOTS.slice(0,level*8).forEach((spot,index)=>{
         const x=spot.x*W,y=spot.y*H;
         const item=state.items.find(it=>it.slot_index===index);
+        if(item?.item_type==='pen')return;
         if(index===homeSlot){
+          if(penPlacement&&!penLocationAvailable(state,index,intent?.id))return;
           const marker=this.add.ellipse(x,y+40,300,145,0xf8e5b6,.17).setStrokeStyle(3,0xffefc8,.8).setDepth(y-120);
           this.target(marker,()=>onSpot(index));
           this.add.text(x,y+115,`Animal home · ${ownedAnimals(state).length}`,{fontSize:'24px',fontStyle:'bold',color:'#fff8df',stroke:'#705333',strokeThickness:4}).setOrigin(.5).setDepth(y+115);
@@ -102,6 +111,8 @@ export function mountGame(host, getState, onSpot, onItem, onWalk, onProjection) 
           art.setDisplaySize(width,width*art.height/art.width).setDepth(y);
           this.target(art,()=>onItem(item));
         } else {
+          if(penPlacement&&!penLocationAvailable(state,index,intent?.id))return;
+          if(!penPlacement&&!buildingClearOfPens(state,index))return;
           const ring=this.add.ellipse(x,y,116,46,0xffe3ad,.25).setStrokeStyle(3,0xffffff,.8).setDepth(y);
           this.target(ring,()=>onSpot(index));
           this.add.text(x,y-7,'+',{fontSize:'32px',color:'#fff9e9',fontStyle:'bold',stroke:'#987247',strokeThickness:4}).setOrigin(.5).setDepth(y+1);
@@ -130,7 +141,7 @@ export function mountGame(host, getState, onSpot, onItem, onWalk, onProjection) 
     }
     walkTo(x,y){
       const end={x,y:y+.08},start={x:this.player.x/W,y:this.player.y/H};
-      const route=walkingRoute(start,end,getState().land_level||1);
+      const route=walkingRoute(start,end,getState().land_level||1,(a,b)=>fenceClear(a,b,getState()));
       if(!route)return false;
       this.walkTween?.stop();this.follow=true;
       this.zoomTo(Math.max(.95,this.cameras.main.zoom));
@@ -150,6 +161,7 @@ export function mountGame(host, getState, onSpot, onItem, onWalk, onProjection) 
       const last=this.trail.at(-1);
       if(Math.hypot(this.player.x-last.x,this.player.y-last.y)>18){this.trail.push({...this.player});if(this.trail.length>200)this.trail.shift();}
       this.life.update(time,delta,this.player,this.trail);
+      for(const pen of this.penViews||[])pen.update(this.player,this.life.nodes);
       const cam=this.cameras.main;
       // DOM character uses the same camera projection as every Phaser object.
       const x=W/2+(this.player.x-this.center.x)*cam.zoom;

@@ -1,3 +1,4 @@
+import { animalPen, penResidents, penPosition } from './pens.js';
 import { ITEMS } from './catalog.js';
 import { isDryGround } from './ground.js';
 import { WORLD_SPOTS, CORE_WIDTH as W, CORE_HEIGHT as H } from './world.js';
@@ -6,13 +7,16 @@ import { WORLD_SPOTS, CORE_WIDTH as W, CORE_HEIGHT as H } from './world.js';
 export const isAnimal = type => !!ITEMS[type]?.animal;
 export const ownedAnimals = oasis => oasis.items.filter(item=>isAnimal(item.item_type)).sort((a,b)=>a.id.localeCompare(b.id));
 export function animalHomeSlot(oasis) {
-  const animals=ownedAnimals(oasis);
+  const animals=ownedAnimals(oasis).filter(i=>!animalPen(oasis,i));
   if(!animals.length)return null;
   const slot=oasis.animal_home_slot;
   if(Number.isInteger(slot)&&slot>=0&&slot<(oasis.land_level||1)*8&&!oasis.items.some(i=>i.slot_index===slot&&!isAnimal(i.item_type)))return slot;
   return Math.min(...animals.map(i=>i.slot_index));
 }
 export function herdPosition(oasis,index) {
+  const animal=ownedAnimals(oasis)[index],pen=animal&&animalPen(oasis,animal);
+  if(pen)return penPosition(pen,penResidents(oasis,pen).findIndex(i=>i.id===animal.id));
+  if(animal)index=ownedAnimals(oasis).filter(i=>!animalPen(oasis,i)).findIndex(i=>i.id===animal.id);
   const home=WORLD_SPOTS[animalHomeSlot(oasis)];
   const offsets=[[0,0],[-100,55],[100,55],[-95,-45],[95,-45],[0,100]];
   let [dx,dy]=offsets[index%offsets.length];

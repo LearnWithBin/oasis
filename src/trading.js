@@ -68,7 +68,7 @@ export function mountTrading({ getOasis, setOasis, say }) {
     panel.querySelector('#trade-error').textContent = '';
     body.innerHTML = `<div class="trade-toolbar"><button type="button" id="new-offer">Make an offer</button><button type="button" id="refresh-trades">Refresh</button></div>
       <div class="trade-sections"></div>`;
-    body.querySelector('#new-offer').disabled = !data.peers.length || !getOasis().items.length;
+    body.querySelector('#new-offer').disabled = !data.peers.length || !getOasis().items.some(i=>i.item_type!=='pen');
     body.querySelector('#new-offer').onclick = () => compose();
     body.querySelector('#refresh-trades').onclick = async event => {
       event.currentTarget.disabled = true;
@@ -81,7 +81,7 @@ export function mountTrading({ getOasis, setOasis, say }) {
       p.className = 'trade-empty';
       p.textContent = 'No classmates here yet. They appear after opening their personal Oasis links. The teacher Test Oasis is separate from the student class.';
       sections.append(p);
-    } else if (!getOasis().items.length) {
+    } else if (!getOasis().items.some(i=>i.item_type!=='pen')) {
       const p = document.createElement('p'); p.className = 'trade-empty';
       p.textContent = 'Add an item or a baby goat to offer something of your own.'; sections.append(p);
     }
@@ -125,7 +125,7 @@ export function mountTrading({ getOasis, setOasis, say }) {
   function compose(itemId) {
     const body = panel.querySelector('#trade-content');
     panel.querySelector('#trade-error').textContent = '';
-    const items = getOasis().items;
+    const items = getOasis().items.filter(i=>i.item_type!=='pen');
     // SQL also enforces one pending offer per item; all offered items stay movable.
     body.innerHTML = `<form id="offer-form" class="trade-form">
       <h3>Make an offer</h3>

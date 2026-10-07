@@ -1,9 +1,10 @@
 import './style.css';
-import { enterOasis, updateProfile, buyItem, moveItem, sellItem, setAnimalHome, setAnimalCompanion, isPreview } from './backend.js';
+import { enterOasis, updateProfile, buyItem, moveItem, sellItem, setAnimalHome, setAnimalCompanion, setPenAnimals, isPreview } from './backend.js';
 import { mountGame } from './game.js';
 import { avatarMarkup } from './avatar.js';
 import { mountTrading } from './trading.js';
 import { ITEMS, itemLabel, capacity } from './catalog.js';
+import { ownedPens, animalPen, penResidents, PEN_CAPACITY } from './pens.js';
 import { isAnimal, animalHomeSlot, ownedAnimals } from './animals.js';
 const asset = name => `${import.meta.env.BASE_URL}assets/${name}`;
 
@@ -38,6 +39,7 @@ function shell() {
       <button class="shop-item active" data-type="palms"><img src="${asset('date-palms.webp')}" alt="Date palms"/><span>Date palms</span><b>★ 2</b></button>
       <button class="shop-item" data-type="tent"><img src="${asset('tent.webp')}" alt="Canvas tent"/><span>Canvas tent</span><b>★ 4</b></button>
       <button class="shop-item" data-type="goat"><img src="${asset('baby-goat.svg')}" alt="Baby goat"/><span>Baby goat</span><b>★ 8</b></button>
+      <button class="shop-item" data-type="pen"><img src="${asset('animal-pen.svg')}" alt="Animal pen"/><span>Animal pen</span><small>room for 6</small><b>★ 12</b></button>
       <button class="shop-item move" data-type="move"><span class="move-icon">↔</span><span>Rearrange</span><small>free</small></button>
       <button class="shop-item trades" id="class-trades" data-type="trade"><span class="move-icon">⇄</span><span>Class trades</span><small>items or stars</small><b id="trade-count" hidden></b></button>
     </nav><div id="toast" class="toast" role="status" hidden></div>
@@ -50,9 +52,10 @@ function shell() {
     const type = button.dataset.type;
     intent = type === 'move' ? { type: 'move' } : { type: 'buy', item: type };
     document.querySelectorAll('.shop-item').forEach(b => b.classList.toggle('active', b === button));
-    document.querySelector('#tip').textContent = type === 'move' ? 'Tap an item, then tap an empty spot' : 'Tap sand to walk · drag to explore';
+    document.querySelector('#tip').textContent = type === 'move' ? 'Tap an item, then tap an empty spot' : type==='pen'?'Tap a roomy glowing spot to build a pen':'Tap sand to walk · drag to explore';
+    game?.refresh();
   });
-  game = mountGame('scene', () => oasis, handleSpot, handleItem, handleWalk, projectAvatar);
+  game = mountGame('scene', () => oasis, handleSpot, handleItem, handleWalk, projectAvatar, () => intent);
   document.querySelector('#zoom-in').onclick = () => game.zoom(1);
   document.querySelector('#zoom-out').onclick = () => game.zoom(-1);
   document.querySelector('#whole-oasis').onclick = () => game.overview();
@@ -163,6 +166,7 @@ async function handleSpot(index) {
       } else say(isAnimal(intent.item) ? 'Your new animal has joined the home group.' : `Added ${itemLabel(intent.item).toLowerCase()} to your Oasis!`);
     }
     sync();
+    if(intent.type==='buy'&&intent.item==='pen'){const pen=oasis.items.find(i=>i.item_type==='pen'&&i.slot_index===index);if(pen)showPen(pen);}
     if ((oasis.land_level || 1) > oldLevelForView) game.overview();
   } catch (error) { say(error.message); } finally { inventoryBusy = false; }
 }
@@ -170,6 +174,7 @@ async function handleSpot(index) {
 function handleItem(item) {
   if (document.querySelector('.scrim')) return;
   if (intent.type === 'move') return selectItemToMove(item);
+  if(item.item_type==='pen')return showPen(item);
   const root = document.querySelector('#modal-root');
   const label = itemLabel(item.item_type);
   const refund = ITEMS[item.item_type].refund;
@@ -182,9 +187,9 @@ function handleItem(item) {
     <button type="button" class="dialog-cancel" id="close-item">Keep it here</button><div class="form-error" id="item-error" role="alert"></div>
   </section></div>`;
   if (isAnimal(item.item_type)) {
-    root.querySelector('#choose-move').textContent = 'Move animal home';
+    root.querySelector('#choose-move').textContent = animalPen(oasis,item)?'Manage its pen':'Move animal home';
     root.querySelector('#choose-companion').onclick = () => animalAction(() => setAnimalCompanion(oasis.companion_item_id===item.id?null:item.id));
-    root.querySelector('#add-animal').onclick = () => animalAction(() => buyItem(item.item_type,animalHomeSlot(oasis)), 'Your new animal has joined the home group.');
+    root.querySelector('#add-animal').onclick = () => animalAction(() => buyItem(item.item_type,animalHomeSlot(oasis)??oasis.items.find(i=>isAnimal(i.item_type)).slot_index), 'Your new animal has joined the home group.');
   }
   root.querySelector('#close-item').onclick = () => { root.innerHTML = ''; };
   root.querySelector('#choose-move').onclick = () => { root.innerHTML = ''; selectItemToMove(item); };
@@ -210,11 +215,12 @@ function handleItem(item) {
 }
 
 function selectItemToMove(item) {
-  if(isAnimal(item.item_type)) return chooseAnimalHome();
-  intent = { type: 'move' };
+  if(isAnimal(item.item_type)) {const pen=animalPen(oasis,item);return pen?showPen(pen):chooseAnimalHome();}
+  intent = { type: 'move', item:item.item_type, id:item.id };
   document.querySelectorAll('.shop-item').forEach(b => b.classList.toggle('active', b.dataset.type === 'move'));
   selected = item;
   document.querySelector('#tip').textContent = 'Tap an empty spot to move this item';
+  game.refresh();
   say('Now tap an empty glowing space to move this item.');
 }
 
@@ -222,7 +228,8 @@ function chooseAnimalHome() {
   document.querySelector('#modal-root').innerHTML='';
   intent={type:'animal-home'};selected=null;
   document.querySelector('#tip').textContent='Tap a clear glowing spot for the shared animal home';
-  say('Choose one spot where your animals will live together.');
+  game.refresh();
+  say('Choose one spot for animals that live outside a pen.');
 }
 
 async function animalAction(action,message) {
@@ -243,14 +250,41 @@ function showAnimals() {
   const animals=ownedAnimals(oasis),root=document.querySelector('#modal-root');
   root.innerHTML=`<div class="scrim"><section class="item-dialog animal-dialog" role="dialog" aria-modal="true" aria-labelledby="animals-title">
     <div class="kicker">YOUR OASIS</div><h2 id="animals-title">Your animals</h2>
-    <p>${animals.length?'Your animals share one home. Choose one companion to follow you.':'Buy an animal from the build menu to start your home group.'}</p>
-    <div class="animal-list">${animals.map((item,index)=>`<div class="animal-card"><img src="${asset(ITEMS[item.item_type].image)}" alt=""/><span>${itemLabel(item.item_type)} ${index+1}<small>${oasis.companion_item_id===item.id?'Your companion':'Lives at home'}</small></span><button type="button" data-pet="${item.id}">${oasis.companion_item_id===item.id?'Send home':'Follow me'}</button></div>`).join('')}</div>
-    ${animals.length?'<button type="button" id="move-animal-home" class="item-trade">Move animal home</button>':''}
+    <p>${animals.length?'Choose one companion to follow you. Animals return to their pen or shared home.':'Buy an animal from the build menu to start your home group.'}</p>
+    <div class="animal-list">${animals.map((item,index)=>`<div class="animal-card"><img src="${asset(ITEMS[item.item_type].image)}" alt=""/><span>${itemLabel(item.item_type)} ${index+1}<small>${oasis.companion_item_id===item.id?'Your companion':animalPen(oasis,item)?`Pen ${ownedPens(oasis).findIndex(p=>p.id===item.pen_item_id)+1}`:'Shared home'}</small></span><button type="button" data-pet="${item.id}">${oasis.companion_item_id===item.id?'Send home':'Follow me'}</button></div>`).join('')}</div>
+    ${ownedPens(oasis).map((pen,index)=>`<button type="button" class="item-trade" data-pen="${pen.id}">Manage pen ${index+1} · ${penResidents(oasis,pen).length}/6 animals</button>`).join('')}
+    ${animals.some(i=>!animalPen(oasis,i))?'<button type="button" id="move-animal-home" class="item-trade">Move animal home</button>':''}
     <button type="button" id="close-animals" class="dialog-cancel">Close animals</button><div id="item-error" class="form-error" role="alert"></div>
   </section></div>`;
   root.querySelector('#close-animals').onclick=()=>{root.innerHTML='';};
   root.querySelector('#move-animal-home')?.addEventListener('click',chooseAnimalHome);
+  root.querySelectorAll('[data-pen]').forEach(button=>button.onclick=()=>showPen(ownedPens(oasis).find(p=>p.id===button.dataset.pen)));
   root.querySelectorAll('[data-pet]').forEach(button=>button.onclick=()=>animalAction(()=>setAnimalCompanion(oasis.companion_item_id===button.dataset.pet?null:button.dataset.pet)));
+}
+
+function showPen(pen) {
+ const root=document.querySelector('#modal-root'),animals=ownedAnimals(oasis);
+ const number=ownedPens(oasis).findIndex(p=>p.id===pen.id)+1;
+ root.innerHTML=`<div class="scrim"><section class="item-dialog animal-dialog" role="dialog" aria-modal="true" aria-labelledby="pen-title">
+  <div class="kicker">ON YOUR OASIS</div><h2 id="pen-title">Animal pen ${number}</h2>
+  <p>Choose up to six animals to live here. Your pet can come out with you and return through the gate.</p>
+  <div class="pen-count" id="pen-count"></div>
+  <div class="animal-list">${animals.map((item,index)=>`<label class="animal-card pen-animal"><img src="${asset(ITEMS[item.item_type].image)}" alt=""/><span>${itemLabel(item.item_type)} ${index+1}<small>${animalPen(oasis,item)?`Lives in pen ${ownedPens(oasis).findIndex(p=>p.id===item.pen_item_id)+1}`:'Lives at the shared home'}</small></span><input type="checkbox" value="${item.id}" ${item.pen_item_id===pen.id?'checked':''} aria-label="House ${itemLabel(item.item_type).toLowerCase()} ${index+1}"/></label>`).join('')}</div>
+  ${animals.length?'<button type="button" class="primary" id="save-pen">Save animals</button>':'<p>Buy animals from the build menu, then return here to choose their home.</p>'}
+  <div class="dialog-actions"><button type="button" id="move-pen">Move pen</button><button type="button" id="sell-pen">Sell for ★ 6</button></div>
+  <button type="button" class="dialog-cancel" id="close-pen">Keep it here</button><div class="form-error" id="item-error" role="alert"></div>
+ </section></div>`;
+ const selectedAnimals=()=>Array.from(root.querySelectorAll('input:checked'),input=>input.value);
+ const update=()=>{const n=selectedAnimals().length;root.querySelector('#pen-count').textContent=`${n} / ${PEN_CAPACITY} animals`;const save=root.querySelector('#save-pen');if(save)save.disabled=n>PEN_CAPACITY;};
+ root.querySelectorAll('input').forEach(input=>input.onchange=update);update();
+ root.querySelector('#save-pen')?.addEventListener('click',()=>animalAction(()=>setPenAnimals(pen.id,selectedAnimals()),'Your animals are walking to their pen.'));
+ root.querySelector('#move-pen').onclick=()=>{root.innerHTML='';selectItemToMove(pen);};
+ root.querySelector('#close-pen').onclick=()=>{root.innerHTML='';};
+ root.querySelector('#sell-pen').onclick=()=>{
+  root.querySelector('p').textContent='Sell this pen for 6 stars? Its animals will return to the shared home.';
+  const button=root.querySelector('#sell-pen');button.textContent='Yes, sell pen';
+  button.onclick=()=>animalAction(async()=>{const result=await sellItem(pen.id);return result.oasis;},'Pen sold for 6 stars. Your animals still belong to you.');
+ };
 }
 
 app.innerHTML = '<div class="loading">Opening your Oasis…</div>';

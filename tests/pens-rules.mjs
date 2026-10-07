@@ -1,0 +1,20 @@
+import assert from 'node:assert/strict';
+import {WORLD_SPOTS,CORE_WIDTH as W,CORE_HEIGHT as H} from '../src/world.js';
+import {penLocationAvailable,fenceClear,insidePen,penPosition} from '../src/pens.js';
+import {walkingRoute} from '../src/ground.js';
+const pen={id:'pen',item_type:'pen',slot_index:8};
+const oasis={land_level:2,items:[pen]};
+assert.ok(penLocationAvailable(oasis,8,pen.id));
+assert.ok(!penLocationAvailable(oasis,8),'cannot stack pens');
+assert.ok(!penLocationAvailable(oasis,0),'pond edge too tight');
+assert.ok(!penLocationAvailable({...oasis,land_level:1},8),'locked land');
+const home=penPosition(pen,0),outside={x:.6,y:1.03};
+assert.ok(!fenceClear(home,{x:home.x-.4,y:home.y},oasis),'cannot cross side fence');
+const route=walkingRoute(home,outside,2,(a,b)=>fenceClear(a,b,oasis));
+assert.ok(route?.length,'path exits gate');
+let p=home,gateCross=false;
+for(const q of route){assert.ok(fenceClear(p,q,oasis));if(insidePen(p,pen)!==insidePen(q,pen))gateCross=true;p=q;}
+assert.ok(gateCross);
+const returning=walkingRoute(outside,home,2,(a,b)=>fenceClear(a,b,oasis));assert.ok(returning?.length);
+for(let i=0;i<6;i++)assert.ok(insidePen(penPosition(pen,i),pen,30));
+console.log('Pen geometry PASS: dry footprint, occupied and locked ground, six residents, fence collision and gate routes in both directions.');
