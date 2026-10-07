@@ -19,3 +19,36 @@
 .dialog-actions button:first-child{background:#e9d5ae;color:#254253}
 .dialog-actions button:only-child{background:#277f93;color:#fff}
 .dialog-cancel{display:block;margin:14px auto 0;border:0;background:transparent;color:#365a6b;font-weight:700;padding:8px}
+/* Class trades are large touch targets, with a plain-language review step. */
+#trade-count[hidden]{display:none}
+.shop-item.trades small{font-size:10px;color:#4e6070}
+.item-trade{width:100%;margin-top:10px;border:2px solid #b59a70;border-radius:12px;background:#fff4dd;color:#254253;font-weight:800;padding:12px}
+.trade-panel{width:min(96vw,580px);max-height:92svh;overflow-y:auto;overscroll-behavior:contain;background:#fff9ef;border-radius:24px;padding:24px;color:#173647;box-shadow:0 18px 55px #0418249c}
+.trade-top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.trade-panel h2{font:700 30px 'Fraunces',Georgia,serif;margin:5px 0 8px}
+.trade-panel h3{font:700 21px 'Fraunces',Georgia,serif;margin:24px 0 12px}
+.trade-panel p{line-height:1.5}
+.trade-intro,.trade-note,.trade-empty{font-size:13px;color:#576975}
+.trade-empty{border:1px dashed #c7baa3;border-radius:12px;padding:13px;background:#fffdf7}
+.trade-panel button{border:0;min-height:44px;border-radius:11px;background:#277f93;color:white;padding:11px 15px;font-weight:800}
+.trade-panel button:disabled{cursor:default}
+.trade-panel .trade-close{flex-shrink:0;width:44px;font-size:25px;line-height:1;background:#e9d5ae;color:#254253}
+.trade-toolbar{display:flex;justify-content:space-between;gap:10px;margin-top:20px}
+.trade-toolbar #refresh-trades,.trade-panel .trade-secondary{background:#e9d5ae;color:#254253}
+.trade-card{border:1px solid #ded0b6;border-radius:15px;padding:16px;margin:10px 0;background:#fffdf7}
+.trade-person{font-size:13px;font-weight:800;overflow-wrap:anywhere}
+.trade-exchange{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;margin-top:13px}
+.trade-exchange small{display:block;color:#68727a;font-size:11px;margin-bottom:3px}
+.trade-exchange strong{display:block;font-size:15px}
+.trade-exchange>span{color:#9e743e;font-size:25px}
+.trade-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}
+.trade-actions button{flex:1}
+.trade-expiry,.trade-status{font-size:11px;color:#66747b;margin:10px 0 0}
+.trade-status{font-weight:800}
+.trade-panel label{display:block;font-size:13px;font-weight:800;margin:17px 0 6px}
+.trade-panel select,.trade-panel input{width:100%;min-height:48px;max-width:100%;border:2px solid #ddcfb9;border-radius:11px;background:white;color:#173647;padding:10px;font:inherit;font-size:16px}
+.trade-panel #trade-price-row[hidden]{display:none}
+.trade-summary{font-size:16px;overflow-wrap:anywhere}
+.trade-panel .form-error{outline:none}
+.trade-panel button:focus-visible,.trade-panel select:focus-visible,.trade-panel input:focus-visible{outline:3px solid #177a96;outline-offset:3px}
+@media(max-width:700px){.trade-panel{padding:19px 16px}.trade-panel h2{font-size:26px}.trade-exchange{gap:8px}.trade-exchange strong{font-size:13px}.trade-actions button{padding:11px 10px;font-size:13px}}

@@ -2,11 +2,13 @@ import './style.css';
 import { enterOasis, updateProfile, buyItem, moveItem, sellItem, isPreview } from './backend.js';
 import { mountGame } from './game.js';
 import { avatarMarkup } from './avatar.js';
+import { mountTrading } from './trading.js';
 const asset = name => `${import.meta.env.BASE_URL}assets/${name}`;
 
 const app = document.querySelector('#app');
 let oasis, game, intent = { type: 'buy', item: 'palms' }, selected = null;
 let avatarPosition = { x: 0.45, y: 0.77 }, walkTimer;
+const trading = mountTrading({ getOasis: () => oasis, setOasis: data => { oasis = data; sync(); }, say });
 const skinOptions = ['#7a4b33', '#a86843', '#d49a6c', '#efc299'];
 const hairOptions = ['#191719', '#493128', '#7a4932', '#e8cf86', '#e7eaf0'];
 const clothesOptions = ['#ee9b52', '#4b9aaf', '#ad6e96', '#d6ad4d'];
@@ -29,11 +31,13 @@ function shell() {
       <button class="shop-item active" data-type="palms"><img src="${asset('date-palms.webp')}" alt="Date palms"/><span>Date palms</span><b>★ 2</b></button>
       <button class="shop-item" data-type="tent"><img src="${asset('tent.webp')}" alt="Canvas tent"/><span>Canvas tent</span><b>★ 4</b></button>
       <button class="shop-item move" data-type="move"><span class="move-icon">↔</span><span>Rearrange</span><small>free</small></button>
+      <button class="shop-item trades" id="class-trades" data-type="trade"><span class="move-icon">⇄</span><span>Class trades</span><small>items or stars</small><b id="trade-count" hidden></b></button>
     </nav><div id="toast" class="toast" role="status" hidden></div>
     <div id="modal-root"></div>${isPreview ? '<span class="preview-label">PRIVATE PREVIEW</span>' : ''}
   </main>`;
   document.querySelector('#edit').onclick = () => showProfile();
   document.querySelectorAll('.shop-item').forEach(button => button.onclick = () => {
+    if (button.dataset.type === 'trade') return trading.open();
     selected = null;
     const type = button.dataset.type;
     intent = type === 'move' ? { type: 'move' } : { type: 'buy', item: type };
@@ -44,6 +48,10 @@ function shell() {
   document.addEventListener('keydown', handleWalkKey);
   sync();
   if (!oasis.oasis_name) showProfile();
+  trading.refreshBadge();
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') trading.refreshBadge();
+  });
 }
 
 function sync() {
@@ -157,6 +165,7 @@ function showProfile() {
 }
 
 async function handleSpot(index) {
+  if (document.querySelector('.scrim')) return;
   if (!oasis.oasis_name) return showProfile();
   try {
     if (intent.type === 'move') {
@@ -170,6 +179,7 @@ async function handleSpot(index) {
 }
 
 function handleItem(item) {
+  if (document.querySelector('.scrim')) return;
   if (intent.type === 'move') return selectItemToMove(item);
   const root = document.querySelector('#modal-root');
   const label = item.item_type === 'tent' ? 'Canvas tent' : 'Date palms';
@@ -178,10 +188,12 @@ function handleItem(item) {
     <div class="kicker">YOUR OASIS</div><h2 id="item-dialog-title">${label}</h2>
     <p>What would you like to do with this item?</p>
     <div class="dialog-actions"><button type="button" id="choose-move">Move it</button><button type="button" id="choose-sell">Sell for ★ ${refund}</button></div>
+    <button type="button" class="item-trade" id="choose-trade">Offer to a classmate</button>
     <button type="button" class="dialog-cancel" id="close-item">Keep it here</button><div class="form-error" id="item-error" role="alert"></div>
   </section></div>`;
   root.querySelector('#close-item').onclick = () => { root.innerHTML = ''; };
   root.querySelector('#choose-move').onclick = () => { root.innerHTML = ''; selectItemToMove(item); };
+  root.querySelector('#choose-trade').onclick = () => trading.open(item.id);
   root.querySelector('#choose-sell').onclick = () => {
     const dialog = root.querySelector('.item-dialog');
     dialog.querySelector('p').textContent = `Sell this ${label.toLowerCase()} and receive ${refund} ${refund === 1 ? 'star' : 'stars'}?`;

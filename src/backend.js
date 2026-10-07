@@ -88,3 +88,31 @@ export async function sellItem(itemId) {
   if (error) errorMessage(error);
   return { oasis: await enterOasis(), refund };
 }
+
+export async function getTrading() {
+  if (preview) return { peers: [], offers: [] };
+  const [peers, offers] = await Promise.all([
+    client.rpc('trade_peers'), client.rpc('my_trade_offers')
+  ]);
+  if (peers.error || offers.error) errorMessage(peers.error || offers.error);
+  return { peers: peers.data || [], offers: offers.data || [] };
+}
+
+export async function createTrade({ recipient, item, wantedType, starPrice }) {
+  if (preview) throw new Error('Class trades are available through your personal Oasis link.');
+  const { data, error } = await client.rpc('create_trade_offer', {
+    p_recipient: recipient, p_item: item,
+    p_wanted_type: wantedType || null, p_star_price: starPrice ?? null
+  });
+  if (error) errorMessage(error);
+  return data;
+}
+
+export async function resolveTrade(offer, accept, paymentItem = null) {
+  if (preview) throw new Error('Class trades are available through your personal Oasis link.');
+  const { data, error } = await client.rpc('resolve_trade_offer', {
+    p_offer: offer, p_accept: accept, p_payment_item: paymentItem
+  });
+  if (error) errorMessage(error);
+  return { status: data, oasis: await enterOasis() };
+}
