@@ -22,7 +22,7 @@ export function mountGame(host, getState, onSpot, onItem, onWalk, onProjection, 
       this.load.svg('coop-shelter',asset('coop-shelter.svg'),{width:300,height:225});
       Object.values(ITEMS).filter(item=>item.animal).forEach(item=>{
         const config=item.animal;
-        [[config.texture,item.image],[config.step,config.walkImage],[config.rest,config.restImage]].forEach(([key,file])=>{
+        [[config.texture,item.image],[config.step,config.walkImage],[config.rest,config.restImage],...(config.peck?[[config.peck,config.peckImage]]:[])].forEach(([key,file])=>{
           if(file.endsWith('.svg'))this.load.svg(key,asset(file),{width:240,height:192});
           else this.load.image(key,asset(file));
         });

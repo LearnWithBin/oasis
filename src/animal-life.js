@@ -13,14 +13,14 @@ export class AnimalLife {
     for(const id of this.positions.keys())if(!animals.some(item=>item.id===id))this.positions.delete(id);
     animals.forEach((item,index)=>{
       const pen=animalPen(state,item),config={...ITEMS[item.item_type].animal},home=herdPosition(state,index);
-      if(pen){config.width=item.item_type==='chicken'?86:105;config.height=item.item_type==='chicken'?78:84;}
+      if(pen){config.width=item.item_type==='chicken'?86:105;config.height=item.item_type==='chicken'?69:84;}
       const saved=this.positions.get(item.id),position=saved&&isDryGround(saved.x,saved.y,state.land_level||1)?saved:home;
       const shadow=this.scene.add.ellipse(0,0,70,15,0x674b32,.22);
       const art=this.scene.add.sprite(0,0,config.texture).setOrigin(.5,.92).setDisplaySize(config.width,config.height);
       const sleep=this.scene.add.text(42,-100,'z z',{fontFamily:'Georgia',fontStyle:'bold',fontSize:'23px',color:'#fff9e9',stroke:'#78583a',strokeThickness:3}).setVisible(false);
       const view=this.scene.add.container(position.x*W,position.y*H,[shadow,art,sleep]).setName(`animal:${item.id}`).setDepth(position.y*H);
       this.scene.target(art,()=>this.onItem(item));
-      const node={item,config,pen,home,view,art,sleep,route:[],mode:'idle',nextDecision:this.scene.time.now+700,replanAt:0,hopUntil:0};
+      const node={item,config,pen,home,view,art,sleep,route:[],mode:'idle',nextDecision:this.scene.time.now+300+index*230,replanAt:0,hopUntil:0,phase:index*1.7};
       this.nodes.push(node);
     });
   }
@@ -42,14 +42,16 @@ export class AnimalLife {
       } else if((node.pen?!insidePen({x:view.x/W,y:view.y/H},node.pen,30):distance>105) && time>node.replanAt){
         this.routeTo(node,goal);node.replanAt=time+1000;node.mode='returning';node.sleep.setVisible(false);
       } else if(!node.route.length && time>node.nextDecision){
-        if(node.mode==='resting'){node.mode='idle';node.nextDecision=time+1000;}
-        else if(Math.random()<.38){
+        if(node.mode==='resting'||node.mode==='pecking'){node.mode='idle';node.nextDecision=time+350;}
+        else if(config.peck&&Math.random()<.30){node.mode='pecking';node.nextDecision=time+1200+Math.random()*900;}
+        else if(Math.random()<(config.peck?.14:.38)){
           if(node.pen){const residents=penResidents(this.state,node.pen),bed=penPosition(node.pen,residents.findIndex(i=>i.id===node.item.id),true);this.routeTo(node,{x:bed.x*W,y:bed.y*H});node.restOnArrival=true;}
-          node.mode='resting';node.nextDecision=time+3500+Math.random()*3500;
+          node.mode='resting';node.nextDecision=time+(config.peck?2000:3500)+Math.random()*3500;
         }
         else {
           for(let attempt=0;attempt<8;attempt++){
-            const target={x:home.x+(Math.random()-.5)*.035,y:home.y+(Math.random()-.5)*.035};
+            const spread=config.peck?.075:.035;
+            const target={x:home.x+(Math.random()-.5)*spread,y:home.y+(Math.random()-.5)*spread};
             if(node.pen&&!insidePen(target,node.pen,40))continue;
             if(dryRoute({x:view.x/W,y:view.y/H},target,this.state.land_level||1,(a,b)=>fenceClear(a,b,this.state))){
               node.route=[{x:target.x*W,y:target.y*H}];node.mode='roaming';break;
@@ -63,22 +65,23 @@ export class AnimalLife {
         node.sleep.setVisible(false);
         art.setDisplaySize(config.width,config.height).setFlipX(target.x<view.x);
         if(!art.anims.isPlaying)art.play(`${node.item.item_type}-walk`);
-        const dx=target.x-view.x,dy=target.y-view.y,length=Math.hypot(dx,dy),step=config.speed*Math.min(delta,50)/1000;
+        const dx=target.x-view.x,dy=target.y-view.y,length=Math.hypot(dx,dy),step=(pet?Math.max(config.speed,350):config.speed)*Math.min(delta,50)/1000;
         if(length<=step){
           view.setPosition(target.x,target.y);node.route.shift();
           if(!node.route.length){
             art.stop().setTexture(config.texture);
-            node.nextDecision=time+1700+Math.random()*2200;
+            node.nextDecision=time+(config.peck?450:1700)+Math.random()*(config.peck?850:2200);
             if(!pet&&Math.random()<.25)node.hopUntil=time+440;
             node.mode=node.restOnArrival&&!pet?'resting':'idle';node.restOnArrival=false;
           }
         } else view.setPosition(view.x+dx/length*step,view.y+dy/length*step);
       } else {
-        art.stop().setTexture(node.mode==='resting'?config.rest:config.texture);
-        art.setDisplaySize(config.width,config.height*(node.mode==='resting'?.84:1));
+        const pecking=node.mode==='pecking'&&Math.sin(time/170+node.phase)>.1;
+        art.stop().setTexture(node.mode==='resting'?config.rest:pecking?config.peck:config.texture);
+        art.setDisplaySize(config.width,config.height*(node.mode==='resting'&&!config.peck?.84:1));
         node.sleep.setVisible(node.mode==='resting');
       }
-      art.y=node.hopUntil>time?-Math.sin((node.hopUntil-time)/440*Math.PI)*22:0;
+      art.y=node.hopUntil>time?-Math.sin((node.hopUntil-time)/440*Math.PI)*22:config.peck?(node.route.length?-Math.abs(Math.sin(time/100))*3:Math.sin(time/600+node.phase)*1.2):0;
       view.setDepth(view.y);
     }
     if(time>(this.reportAt||0)){
