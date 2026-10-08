@@ -10,7 +10,10 @@ try{
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto('http://127.0.0.1:5192/oasis/style-preview/index.html');
  await page.waitForFunction(()=>document.querySelector('canvas')?.dataset.state);
- const state=()=>page.locator('canvas').getAttribute('data-state').then(JSON.parse);
+ const state=()=>page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>resolve(JSON.parse(document.querySelector('canvas').dataset.state)))));
+ await page.getByLabel('Choose your avatar').selectOption('boy');
+ await page.waitForFunction(()=>JSON.parse(document.querySelector('canvas').dataset.state).avatarStyle==='boy');
+ await page.screenshot({path:'/tmp/oasis-preview-boy-v2.png',fullPage:true});
  const point=async(x,y)=>page.locator('canvas').evaluate((canvas,{x,y})=>{const r=canvas.getBoundingClientRect();const s=Math.min(r.width/1536,r.height/1024);return{x:r.x+r.width/2+(x-768)*s,y:r.y+r.height/2+(y-512)*s};},{x,y});
  const tap=async(x,y)=>{const p=await point(x,y);await page.mouse.click(p.x,p.y);};
  await page.screenshot({path:'/tmp/oasis-style-ipad.png',fullPage:true});
@@ -22,6 +25,12 @@ try{
  await page.waitForFunction(()=>!JSON.parse(document.querySelector('canvas').dataset.state).walking,null,{timeout:15000});
  const atCoop=(await state()).player;assert.ok(Math.hypot(atCoop.x-1170,atCoop.y-380)<2,'walk arrives at chicken home via paths');
  await page.getByRole('button',{name:'Walk with a goat A little companion',exact:true}).click();assert.equal((await state()).pet,true);
+ await page.waitForFunction(()=>JSON.parse(document.querySelector('canvas').dataset.state).goat.mode==='following',null,{timeout:10000});
+ await page.getByRole('button',{name:'Send goat home A little companion',exact:true}).click();
+ const returning=(await state()).goat;assert.equal(returning.mode,'returning');
+ await page.waitForTimeout(100);const stepped=(await state()).goat;assert.ok(Math.hypot(stepped.x-returning.x,stepped.y-returning.y)<40,'goat returns without teleporting');
+ await page.waitForFunction(()=>JSON.parse(document.querySelector('canvas').dataset.state).goat.mode==='home',null,{timeout:10000});
+ await page.getByRole('button',{name:'Walk with a goat A little companion',exact:true}).click();
  await page.getByRole('button',{name:'Whole area',exact:true}).click();
  await page.getByRole('button',{name:'Arrange',exact:true}).click();
  await page.getByRole('button',{name:'Canvas tent Tap to visit',exact:true}).click();await tap(1290,590);
@@ -29,6 +38,11 @@ try{
  await tap(340,210);assert.equal((await state()).buildings.find(b=>b.type==='tent').plot,3,'tent moves to empty plot');
  await page.reload();await page.waitForFunction(()=>document.querySelector('canvas')?.dataset.state);
  assert.equal((await state()).buildings.find(b=>b.type==='tent').plot,3,'arrangement survives reload');assert.equal((await state()).pet,true,'companion choice survives reload');
+ assert.equal((await state()).avatarStyle,'boy','boy choice survives reload');
+ await page.getByRole('button',{name:'Waterfall rocks',exact:true}).click();
+ await page.waitForFunction(()=>{const s=JSON.parse(document.querySelector('canvas').dataset.state);return !s.walking&&Math.hypot(s.player.x-918,s.player.y-225)<2;},null,{timeout:20000});
+ assert.ok(Math.hypot((await state()).player.x-918,(await state()).player.y-225)<2,'waterfall rocks reachable');
+ await page.screenshot({path:'/tmp/oasis-preview-waterfall-v2.png',fullPage:true});
  await page.getByRole('button',{name:'Follow me',exact:true}).click();assert.equal((await state()).zoom,2);
  const before=(await state()).player,box=await page.locator('canvas').boundingBox();
  await page.mouse.move(box.x+box.width*.5,box.y+box.height*.5);await page.mouse.down();await page.mouse.move(box.x+box.width*.5+70,box.y+box.height*.5,{steps:5});await page.mouse.up();
