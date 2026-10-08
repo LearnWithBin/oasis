@@ -1,0 +1,37 @@
+import assert from 'node:assert/strict';
+import {createRequire} from 'node:module';
+import {spawn} from 'node:child_process';
+import {plots} from '../src/illustrated-world.js';
+const require=createRequire(import.meta.url),{chromium}=require(`${process.env.CODEX_PRIMARY_RUNTIME_NODE_MODULES}/playwright`);
+const server=spawn(process.execPath,['node_modules/vite/bin/vite.js','--host','127.0.0.1','--port','5194','--strictPort']);
+await new Promise((resolve,reject)=>{server.stdout.on('data',d=>String(d).includes('Local:')&&resolve());server.once('exit',c=>reject(new Error(`Server exited ${c}`)));});
+const browser=await chromium.launch({executablePath:process.env.OASIS_BROWSER_EXECUTABLE||undefined,args:['--no-sandbox']});
+try{
+ const page=await browser.newPage({viewport:{width:1024,height:1366},hasTouch:true,isMobile:true});
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));const key='learnwithbin-oasis-preview-v1';
+ await page.addInitScript(key=>{if(!localStorage.getItem(key))localStorage.setItem(key,JSON.stringify({id:'preview',oasis_name:'Lateef',stars:80,land_level:1,avatar:{skin:'#a86843',hair:'#e7eaf0',clothes:'#ee9b52'},items:[{id:'tent',item_type:'tent',slot_index:1},{id:'pen',item_type:'pen',slot_index:4},{id:'coop',item_type:'coop',slot_index:5},{id:'goat',item_type:'goat',slot_index:0,pen_item_id:'pen'},{id:'hen',item_type:'chicken',slot_index:2,pen_item_id:'coop'}]}));},key);
+ const stored=()=>page.evaluate(key=>JSON.parse(localStorage.getItem(key)),key);
+ const state=()=>page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>resolve(JSON.parse(document.querySelector('#scene canvas').dataset.state)))));
+ const tap=async(x,y)=>{const s=await state(),r=await page.locator('#scene canvas').boundingBox();await page.mouse.click(r.x+r.width/2+(x-s.camera.x)*s.scale,r.y+r.height/2+(y-s.camera.y)*s.scale);};
+ await page.goto('http://127.0.0.1:5194/oasis/?preview=1&look=illustrated');await page.waitForFunction(()=>document.querySelector('#scene canvas')?.dataset.state);
+ assert.equal((await state()).items.length,5);assert.equal((await state()).animals.length,2);assert.equal((await state()).basket,false);
+ await page.screenshot({path:'/tmp/oasis-connected-ipad.png',fullPage:true});
+ await page.getByRole('button',{name:'Avatar colors and Oasis name'}).click();
+ await page.getByLabel('Avatar',{exact:true}).selectOption('boy');await page.getByLabel('Outfit color',{exact:true}).selectOption('#4b9aaf');await page.getByLabel('Headscarf color',{exact:true}).selectOption('#ad6e96');
+ await page.getByLabel('Avatar',{exact:true}).selectOption('girl');await page.getByLabel('Hair color',{exact:true}).selectOption('#e8cf86');
+ await page.getByLabel('Avatar',{exact:true}).selectOption('boy');await page.getByRole('button',{name:'Save my Oasis',exact:true}).click();
+ await page.waitForFunction(()=>!document.querySelector('.scrim'));assert.equal((await stored()).avatar.colors.girl.hair,'#e8cf86');assert.equal((await stored()).avatar.colors.boy.scarf,'#ad6e96');
+ await page.getByRole('button',{name:'Animals',exact:true}).click();await page.locator('[data-pen="coop"]').click();await page.getByRole('button',{name:'Collect 1 egg',exact:true}).click();
+ await page.waitForFunction(()=>!document.querySelector('.scrim'));assert.equal((await stored()).eggs,1);assert.equal((await stored()).stars,80);assert.equal((await state()).basket,true);
+ await page.getByRole('button',{name:'Animals',exact:true}).click();await page.locator('[data-pen="coop"]').click();assert.equal(await page.locator('#collect-eggs').isDisabled(),true);await page.getByRole('button',{name:'Keep it here',exact:true}).click();
+ await page.getByRole('button',{name:'Waterfall rocks',exact:true}).click();await page.waitForFunction(()=>JSON.parse(document.querySelector('#scene canvas').dataset.state).walking);await page.waitForFunction(()=>!JSON.parse(document.querySelector('#scene canvas').dataset.state).walking,null,{timeout:20000});assert.ok(Math.hypot((await state()).player.x-918,(await state()).player.y-225)<2);
+ await page.getByRole('button',{name:'Animals',exact:true}).click();await page.locator('[data-pet="goat"]').click();await page.waitForFunction(()=>JSON.parse(document.querySelector('#scene canvas').dataset.state).animals.find(a=>a.id==='goat').mode==='following',null,{timeout:20000});
+ await page.getByRole('button',{name:'Animals',exact:true}).click();await page.locator('[data-pet="goat"]').click();const returning=(await state()).animals.find(a=>a.id==='goat');assert.equal(returning.mode,'returning');await page.waitForTimeout(100);const next=(await state()).animals.find(a=>a.id==='goat');assert.ok(Math.hypot(next.x-returning.x,next.y-returning.y)<40,'goat walks home without teleporting');await page.waitForFunction(()=>JSON.parse(document.querySelector('#scene canvas').dataset.state).animals.find(a=>a.id==='goat').mode==='home',null,{timeout:20000});
+ await page.getByRole('button',{name:'Whole Oasis',exact:true}).click();await page.locator('[data-type="chicken"]').click();await tap(plots[0].x,plots[0].y+75);await page.waitForFunction(key=>JSON.parse(localStorage.getItem(key)).items.length===6,key);assert.equal((await stored()).stars,74);assert.equal((await state()).landLevel,2);assert.ok((await state()).height>1024);
+ await page.getByRole('button',{name:'Whole Oasis',exact:true}).click();await tap(plots[1].x,plots[1].y+20);await page.getByRole('button',{name:'Move it',exact:true}).click();const target=(await state()).buildSlots.find(i=>i!==1);assert.notEqual(target,undefined);await tap(plots[target].x,plots[target].y+75);await page.waitForFunction(({key,target})=>JSON.parse(localStorage.getItem(key)).items.find(i=>i.id==='tent').slot_index===target,{key,target});
+ await page.locator('[data-type="palms"]').click();await tap(plots[target].x,plots[target].y+20);await page.getByRole('button',{name:'Sell for ★ 2',exact:true}).click();await page.getByRole('button',{name:'Yes, sell it',exact:true}).click();await page.waitForFunction(()=>!document.querySelector('.scrim'));assert.equal((await stored()).stars,76);assert.equal((await stored()).items.some(i=>i.id==='tent'),false);
+ await page.reload();await page.waitForFunction(()=>document.querySelector('#scene canvas')?.dataset.state);assert.equal((await state()).avatarStyle,'boy');assert.equal((await state()).eggs,1);
+ await page.getByRole('link',{name:'Original view',exact:true}).click();await page.getByRole('link',{name:'New illustrated view',exact:true}).waitFor();assert.equal(await page.locator('#stars').textContent(),'76');assert.ok((await page.locator('#egg-basket').textContent()).includes('1 egg'));await page.getByRole('link',{name:'New illustrated view',exact:true}).click();await page.waitForFunction(()=>document.querySelector('#scene canvas')?.dataset.state);assert.equal((await state()).avatarStyle,'boy');
+ await page.setViewportSize({width:390,height:844});await page.getByRole('button',{name:'Follow me',exact:true}).click();await page.screenshot({path:'/tmp/oasis-connected-phone.png',fullPage:true});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'phone fits without page overflow');
+ assert.deepEqual(errors,[]);console.log('Illustrated Oasis PASS: same saved inventory, separate avatar colors, daily eggs and basket, waterfall walking, physical goat return, purchases, expansion, moves, refunds, reload, shared original view and phone layout.');
+}finally{await browser.close();server.kill();}

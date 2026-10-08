@@ -50,7 +50,7 @@ export async function enterOasis() {
   if (invite) {
     const { error } = await client.functions.invoke('redeem-invite', { body: { invite } });
     if (error) errorMessage(error);
-    history.replaceState(null, '', location.pathname);
+    const remaining=new URLSearchParams(location.search);remaining.delete('invite');history.replaceState(null, '', location.pathname+(remaining.size?'?'+remaining:''));
   }
   const { data, error } = await client.from('oases').select('id,oasis_name,avatar,stars,land_level,animal_home_slot,companion_item_id,eggs,eggs_collected_at,items:items!items_oasis_id_fkey(id,item_type,slot_index,pen_item_id)').single();
   if (error) throw new Error(invite ? error.message : 'Open your personal Oasis link to enter.');

@@ -1,6 +1,10 @@
 import './style.css';
 import { enterOasis, updateProfile, buyItem, moveItem, sellItem, setAnimalHome, setAnimalCompanion, setPenAnimals, collectEggs, isPreview } from './backend.js';
 import { mountGame } from './game.js';
+import {mountIllustratedGame,loadIllustratedArt,drawAvatarPreview,drawItemPreview} from './illustrated-game.js';
+import {palettes,cleanColors} from '../public/style-preview/customization.js';
+const illustrated=new URLSearchParams(location.search).get('look')==='illustrated';
+if(illustrated)document.documentElement.classList.add('illustrated');
 import { avatarMarkup } from './avatar.js';
 import { mountTrading } from './trading.js';
 import { ITEMS, itemLabel, capacity } from './catalog.js';
@@ -49,6 +53,8 @@ function shell() {
     <div id="modal-root"></div>${isPreview ? '<span class="preview-label">PRIVATE PREVIEW</span>' : ''}
   </main>`;
   document.querySelector('#edit').onclick = () => showProfile();
+  const switchLook=document.createElement('a');switchLook.className='look-switch';switchLook.textContent=illustrated?'Original view':'New illustrated view';const params=new URLSearchParams(location.search);if(illustrated)params.delete('look');else params.set('look','illustrated');switchLook.href=location.pathname+'?'+params;document.querySelector('.world-buttons').append(switchLook);
+  if(illustrated){const rocks=document.createElement('button');rocks.textContent='Waterfall rocks';rocks.onclick=()=>game.visitWaterfall();document.querySelector('.world-buttons').append(rocks);document.querySelector('#edit').setAttribute('aria-label','Avatar colors and Oasis name');}
   document.querySelectorAll('.shop-item').forEach(button => button.onclick = () => {
     if (button.dataset.type === 'trade') return trading.open();
     selected = null;
@@ -58,7 +64,8 @@ function shell() {
     document.querySelector('#tip').textContent = type === 'move' ? 'Tap an item, then tap an empty spot' : isPen(type)?'Tap a roomy glowing spot to build a pen':'Tap sand to walk · drag to explore';
     game?.refresh();
   });
-  game = mountGame('scene', () => oasis, handleSpot, handleItem, handleWalk, projectAvatar, () => intent);
+  if(illustrated){illustratedThumbnails();new MutationObserver(illustratedThumbnails).observe(document.querySelector('#modal-root'),{childList:true,subtree:true});}
+  game = (illustrated?mountIllustratedGame:mountGame)('scene', () => oasis, handleSpot, handleItem, handleWalk, projectAvatar, () => intent);
   document.querySelector('#zoom-in').onclick = () => game.zoom(1);
   document.querySelector('#zoom-out').onclick = () => game.zoom(-1);
   document.querySelector('#whole-oasis').onclick = () => game.overview();
@@ -112,6 +119,7 @@ function handleWalkKey(event) {
 }
 
 function showProfile() {
+  if(illustrated)return showIllustratedProfile();
   const root = document.querySelector('#modal-root');
   let avatar = { ...oasis.avatar };
   root.innerHTML = `<div class="scrim"><form class="profile" id="profile-form"><div class="kicker">WELCOME TO YOUR OASIS</div>
@@ -294,7 +302,22 @@ function showPen(pen) {
 }
 
 app.innerHTML = '<div class="loading">Opening your Oasis…</div>';
-enterOasis().then(data => { oasis = data; shell(); }).catch(error => {
+enterOasis().then(async data => { oasis = data;if(illustrated)await loadIllustratedArt();shell(); }).catch(error => {
   app.innerHTML = `<div class="entry-error"><h1>My Oasis</h1><p></p><small>LearnWithBin</small></div>`;
   app.querySelector('p').textContent = error.message;
 });
+
+function showIllustratedProfile(){
+ const root=document.querySelector('#modal-root'),avatar=structuredClone(oasis.avatar);
+ avatar.style=avatar.style==='boy'?'boy':'girl';
+ avatar.colors={girl:cleanColors(avatar.colors?.girl||{skin:avatar.skin,hair:avatar.hair,outfit:avatar.clothes}),boy:cleanColors(avatar.colors?.boy)};
+ root.innerHTML=`<div class="scrim"><form class="profile illustrated-profile"><h2>Your Oasis, your avatar</h2><label for="illustrated-name">Oasis name</label><input id="illustrated-name" maxlength="32" minlength="2" required autocomplete="off"/><label for="illustrated-avatar-style">Avatar</label><select id="illustrated-avatar-style"><option value="girl">Girl</option><option value="boy">Boy in thobe</option></select><canvas id="illustrated-avatar-preview" width="128" height="256" aria-label="Your avatar preview"></canvas><p>Colors save separately for each avatar.</p><div id="illustrated-colors"></div><button id="original-colors" type="button">Restore original colors</button><button class="primary" type="submit">Save my Oasis</button>${oasis.oasis_name?'<button id="profile-cancel" type="button" class="dialog-cancel">Cancel</button>':''}<div id="form-error" class="form-error" role="alert"></div></form></div>`;
+ const form=root.querySelector('form');form.querySelector('#illustrated-name').value=oasis.oasis_name||'';
+ const select=form.querySelector('#illustrated-avatar-style');select.value=avatar.style;
+ function draw(){drawAvatarPreview(form.querySelector('canvas'),avatar);}
+ function fields(){const target=form.querySelector('#illustrated-colors');target.replaceChildren();for(const[key,choices]of Object.entries(palettes)){if(key==='scarf'&&avatar.style!=='boy')continue;const label=document.createElement('label'),input=document.createElement('select');label.textContent={skin:'Skin tone',hair:'Hair color',outfit:'Outfit color',scarf:'Headscarf color'}[key];input.setAttribute('aria-label',label.textContent);for(const[name,color]of choices)input.add(new Option(name,color));input.value=avatar.colors[avatar.style][key];input.onchange=()=>{avatar.colors[avatar.style][key]=input.value;draw();};label.append(input);target.append(label);}draw();}
+ select.onchange=()=>{avatar.style=select.value;fields();};form.querySelector('#original-colors').onclick=()=>{avatar.colors[avatar.style]=cleanColors();fields();};form.querySelector('#profile-cancel')?.addEventListener('click',()=>root.replaceChildren());fields();
+ form.onsubmit=async e=>{e.preventDefault();const name=form.querySelector('#illustrated-name').value.trim();if(name.length<2)return;form.querySelector('.primary').disabled=true;try{oasis=await updateProfile(name,avatar);root.replaceChildren();sync();say('Your avatar and Oasis name are saved.');}catch(error){form.querySelector('#form-error').textContent=error.message;form.querySelector('.primary').disabled=false;}};
+}
+
+function illustratedThumbnails(){for(const img of document.querySelectorAll('.shop-item img,.animal-card img')){const type=Object.keys(ITEMS).find(type=>img.getAttribute('src')?.endsWith(ITEMS[type].image));if(!type)continue;const c=document.createElement('canvas');c.width=100;c.height=60;c.setAttribute('aria-label',itemLabel(type));drawItemPreview(c,type);img.replaceWith(c);}}

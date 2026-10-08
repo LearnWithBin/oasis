@@ -79,3 +79,7 @@
 .egg-collection .primary { margin-top:4px; }
 .egg-basket,.egg-collection b { display:inline-flex; align-items:center; gap:6px; }
 .egg-basket svg,.egg-collection svg { flex-shrink:0; }
+
+.look-switch{display:inline-flex;align-items:center;color:#fff0c9;font-size:12px;padding:7px 10px;text-decoration:none;border:1px solid #718c99;border-radius:18px}.illustrated .world-avatar{visibility:hidden}.illustrated-profile select{width:100%;padding:10px;border:1px solid #d9cbb4;border-radius:9px;background:white;color:#183748;margin:4px 0 12px}.illustrated-profile canvas{display:block;width:96px;height:192px;margin:8px auto}.illustrated-profile #original-colors{padding:10px;border:1px solid #d9cbb4;border-radius:9px;background:#f5e5c9}.illustrated .shop{background:#f6ead6;box-shadow:none}.illustrated .shop-heading{color:#173647}.illustrated .shop-heading span{color:#536773}.illustrated .shop-item{background:#fff9ee;box-shadow:0 3px 0 #ceb991}.illustrated .shop-item.active{border-color:#285e7a;box-shadow:0 0 0 2px #285e7a}.illustrated .stage{max-height:none}.illustrated .world-status{color:#fff1cf}.illustrated .welcome-tip{max-width:45%;text-align:center}
+
+.illustrated .shop-item canvas{width:100px;height:60px}.illustrated .animal-card canvas{width:62px;height:52px;object-fit:contain}

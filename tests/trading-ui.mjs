@@ -59,7 +59,7 @@ await page.route('**/*.supabase.co/**', async route => {
   await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(response) });
 });
 try {
-  await page.goto('http://127.0.0.1:5173/oasis/');
+  await page.goto('http://127.0.0.1:5173/oasis/'+(process.env.OASIS_ILLUSTRATED?'?look=illustrated':''));
   await page.getByRole('button', { name: /Class trades/ }).waitFor();
   await page.getByRole('button', { name: /Class trades/ }).click();
   await page.getByRole('heading', { name: 'Offers for you' }).waitFor();

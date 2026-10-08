@@ -22,3 +22,7 @@ Verification: `node tests/style-preview-ui.mjs` with the Playwright runtime and 
 The new artwork was generated with the built-in image tool from the approved object/avatar style. Boy prompt: matching human boy, traditional ivory Arabian outfit, consistent camera and 6 × 2 standing/walk atlas. Chicken-yard prompt: spacious low white fence, open gate, compact rear nesting cubbies, transparent floor, no house or animals baked into it.
 
 `tests/style-preview-movement.mjs` checks dry ledge routes and continuous goat joining/return. The UI test also checks boy selection persistence, return movement and waterfall access.
+
+## Illustrated expansion, October 8
+
+`expansion-v1.webp`: generated with the built-in ImageGen tool using `terrain.webp` as a style reference; encoded to WebP without changing the artwork. Prompt: “A dry-land expansion matching the detailed warm sunlit illustrated Oasis desert: four broad columns of clear sandy building land, three horizontal lanes, palms and rocks restricted to margins, top and bottom open sand, no pond, water, buildings, fences, people, animals, UI or text.” Used by the saved Oasis illustrated view for additional unlocked land.

@@ -28,6 +28,9 @@ try{
  await page.reload();await page.waitForFunction(()=>document.querySelector('#world')?.dataset.state);
  assert.equal((await state()).colors.girl.hair,'#e8cf86');assert.equal((await state()).colors.boy.outfit,'#4b9aaf');
  await page.getByLabel('Choose your avatar').selectOption('boy');
+ await page.getByRole('button',{name:'Collect 3 eggs',exact:true}).click();
+ assert.equal((await state()).eggs,3);assert.equal((await state()).basket,true);assert.equal(await page.locator('#collect-eggs').isDisabled(),true);
+ await page.reload();await page.waitForFunction(()=>document.querySelector('#world')?.dataset.state);assert.equal((await state()).eggs,3);
  await page.screenshot({path:'/tmp/oasis-preview-boy-v2.png',fullPage:true});
  const point=async(x,y)=>page.locator('#world').evaluate((canvas,{x,y})=>{const r=canvas.getBoundingClientRect();const s=Math.min(r.width/1536,r.height/1024);return{x:r.x+r.width/2+(x-768)*s,y:r.y+r.height/2+(y-512)*s};},{x,y});
  const tap=async(x,y)=>{const p=await point(x,y);await page.mouse.click(p.x,p.y);};
