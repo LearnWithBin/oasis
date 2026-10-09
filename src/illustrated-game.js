@@ -22,6 +22,21 @@ export function mountIllustratedGame(id,getOasis,onSpot,onItem,onWalk,onAvatar,g
  const terrain=document.createElement('canvas');terrain.width=W;terrain.height=1024;const t=terrain.getContext('2d');t.drawImage(assets.terrain,0,0,W,1024);
  if(H>1024){t.globalCompositeOperation='destination-out';const fade=t.createLinearGradient(0,900,0,1024);fade.addColorStop(0,'rgba(0,0,0,0)');fade.addColorStop(1,'rgba(0,0,0,1)');t.fillStyle=fade;t.fillRect(0,900,W,124);}ctx.drawImage(terrain,0,0);}
  function outlinePlot(slot){const polygon=plotOutline(slot);ctx.beginPath();polygon.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));ctx.closePath();}
+ function stoneBorder(slot){
+  // Follow the actual lot perimeter; no separate platform or placement offset.
+  const polygon=plotOutline(slot),colors=['#e6d7bd','#d7c5a8','#cbb899','#eee1cb'];
+  for(let edge=0;edge<polygon.length;edge++){
+   const a=polygon[edge],b=polygon[(edge+1)%polygon.length],dx=b[0]-a[0],dy=b[1]-a[1],length=Math.hypot(dx,dy),count=Math.ceil(length/23);
+   for(let i=0;i<count;i++){
+    // The south entrance faces the walking lane.
+    if(edge===2&&Math.abs((i+.5)/count-.5)<.09)continue;
+    const u=(i+.06)/count,v=(i+.93)/count,x=a[0]+dx*u,y=a[1]+dy*u,x2=a[0]+dx*v,y2=a[1]+dy*v,half=5;
+    const nx=-dy/length*half,ny=dx/length*half,h=7+(i%3);
+    ctx.beginPath();ctx.moveTo(x-nx,y-ny);ctx.lineTo(x2-nx,y2-ny);ctx.lineTo(x2-nx,y2-ny-h);ctx.lineTo(x-nx,y-ny-h);ctx.closePath();ctx.fillStyle='#ad9575';ctx.fill();
+    ctx.beginPath();ctx.moveTo(x-nx,y-ny-h);ctx.lineTo(x2-nx,y2-ny-h);ctx.lineTo(x2+nx,y2+ny-h);ctx.lineTo(x+nx,y+ny-h);ctx.closePath();ctx.fillStyle=colors[(i+edge)%colors.length];ctx.fill();ctx.strokeStyle='#b5a080';ctx.lineWidth=.8;ctx.stroke();
+   }
+  }
+ }
  let background=null;function land(){if(!background||background.height!==H){background=document.createElement('canvas');background.width=W;background.height=H;const main=ctx;ctx=background.getContext('2d');drawLand();ctx=main;}ctx.drawImage(background,0,0);}
  function paint(dt){const oasis=getOasis();view();ctx.clearRect(0,0,cw,ch);ctx.fillStyle='#d8b37d';ctx.fillRect(0,0,cw,ch);ctx.save();ctx.translate(cw/2-camera.x*scale,ch/2-camera.y*scale);ctx.scale(scale,scale);land();
  if(!reduced)for(const[x,y,offset]of [[785,414,0],[916,455,.4],[800,510,.7]]){const phase=(time/3200+offset)%1;ctx.strokeStyle=`rgba(237,255,249,${Math.sin(phase*Math.PI)*.42})`;ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(x,y,12+phase*35,4+phase*10,0,0,Math.PI*2);ctx.stroke();}
@@ -29,6 +44,7 @@ export function mountIllustratedGame(id,getOasis,onSpot,onItem,onWalk,onAvatar,g
  for(let i=0;i<Math.min(32,(oasis.land_level||1)*8);i++)if(plots[i].expansion){outlinePlot(i);ctx.strokeStyle='#b3894b70';ctx.lineWidth=3;ctx.stroke();}
  slots=buildSlots(oasis,getIntent(),{isPen,isAnimal,animalHomeSlot,penLocationAvailable,buildingClearOfPens});
  for(const p of slots){outlinePlot(p.index);ctx.fillStyle='#fff3c024';ctx.fill();ctx.strokeStyle='#fff3c0dd';ctx.setLineDash([8,7]);ctx.lineWidth=3;ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='#4d432a';ctx.font='bold 15px system-ui';ctx.textAlign='center';ctx.fillText(p.index+1,p.x,p.y+6);}
+ for(const item of oasis.items)if(item.item_type==='tent'&&plots[item.slot_index].expansion)stoneBorder(item.slot_index);
  const animals=animalFrame(oasis,dt),drawables=oasis.items.filter(i=>!isAnimal(i.item_type)).map(item=>{const p=plots[item.slot_index],position=buildingPosition(item.slot_index,item.item_type);return{item,...position,depth:item.item_type==='coop'?p.y-45:position.y};});drawables.push(...animals,{player:true,...player});drawables.sort((a,b)=>(a.depth??a.y)-(b.depth??b.y));hitboxes=[];
  for(const d of drawables){if(d.player){ctx.save();ctx.translate(d.x,d.y);if(face<0)ctx.scale(-1,1);const bob=walking&&!reduced?-Math.abs(Math.sin(time/110))*1.3:0;ctx.drawImage(avatarImage(oasis.avatar),(frame%6)*256,Math.floor(frame/6)*512,256,512,-34,-125+bob,68,136);if(oasis.eggs>0)drawBasket(ctx);ctx.restore();}else{const type=d.item.item_type,animal=isAnimal(type);ctx.fillStyle='#67482230';ctx.beginPath();ctx.ellipse(d.x,d.y-(type==='tent'?25:0),animal?16:65,animal?4:14,0,0,Math.PI*2);ctx.fill();const name=type==='coop'?'chicken-yard-v2':'objects',cell={tent:0,pen:1,coop:0,goat:3,chicken:4,palms:5}[type],w=animal?(type==='goat'?64:48):type==='palms'?160:260;const b=sprite(name,cell,d,w,d.life?.face>0,d.life?.moving&&!reduced?-Math.abs(Math.sin(time/150))* (type==='goat'?7:2):0);hitboxes.push({item:d.item,...b});}}
  ctx.restore();canvas.dataset.state=JSON.stringify({player,walking,avatarStyle:oasis.avatar.style||'girl',eggs:oasis.eggs||0,basket:oasis.eggs>0,landLevel:oasis.land_level||1,height:H,zoom:camera.zoom,camera:{x:camera.x,y:camera.y},scale,buildSlots:slots.map(p=>p.index),animals:animals.map(a=>({id:a.item.id,type:a.item.item_type,x:a.x,y:a.y,mode:a.life.mode,moving:a.life.moving})),items:oasis.items.map(i=>({id:i.id,type:i.item_type,slot:i.slot_index}))});canvas.dataset.animals=JSON.stringify(animals.map(a=>({id:a.item.id,x:a.x/W,y:a.y/1024,mode:a.life.mode})));onAvatar({x:.5+(player.x-camera.x)*scale/cw,y:.5+(player.y-camera.y)*scale/ch,height:136*scale/ch,worldX:player.x/W,worldY:player.y/1024,zoom:camera.zoom,walking,facingLeft:face<0});}
