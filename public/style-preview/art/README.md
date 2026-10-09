@@ -26,3 +26,6 @@ The new artwork was generated with the built-in image tool from the approved obj
 ## Illustrated expansion, October 8
 
 `expansion-v1.webp`: generated with the built-in ImageGen tool using `terrain.webp` as a style reference; encoded to WebP without changing the artwork. Prompt: “A dry-land expansion matching the detailed warm sunlit illustrated Oasis desert: four broad columns of clear sandy building land, three horizontal lanes, palms and rocks restricted to margins, top and bottom open sand, no pond, water, buildings, fences, people, animals, UI or text.” Used by the saved Oasis illustrated view for additional unlocked land.
+
+## Matching stone edging
+`curb-stones-v1.webp`: transparent 2×2 atlas generated with the built-in image tool, referencing `terrain.webp`. Prompt: four isolated low beige curb stones, rounded chipped edges, sandy texture, cream tops and shaded tan faces, two horizontal and two vertical footprints, warm daylight matching the original plot edging; no ground, plants, text or frame. Used only around the existing expanded tent lots.

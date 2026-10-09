@@ -6,8 +6,8 @@ import {isAnimal,animalHomeSlot,ownedAnimals} from './animals.js';
 import {isPen,animalPen,penResidents,penLocationAvailable,buildingClearOfPens} from './pens.js';
 const W=1536,assets={},colored=new Map(),bounds={};
 const art=name=>`${import.meta.env.BASE_URL}style-preview/art/${name}.webp?v=4`;
-export async function loadIllustratedArt(){if(assets.terrain)return;await Promise.all(['terrain','objects','avatar','avatar-boy-v2','chicken-yard-v2','expansion-v1'].map(async name=>{const image=new Image();image.src=art(name);await image.decode();assets[name]=image;}));for(const[name,cols,rows]of [['objects',3,2],['chicken-yard-v2',1,1]])bounds[name]=crop(assets[name],cols,rows);}
-function crop(image,cols,rows){const c=document.createElement('canvas');c.width=image.width;c.height=image.height;const ctx=c.getContext('2d',{willReadFrequently:true});ctx.drawImage(image,0,0);const data=ctx.getImageData(0,0,c.width,c.height).data,sw=c.width/cols,sh=c.height/rows,result=[];for(let j=0;j<rows;j++)for(let i=0;i<cols;i++){let x1=sw,y1=sh,x2=0,y2=0;for(let y=0;y<sh;y++)for(let x=0;x<sw;x++)if(data[((j*sh+y)*c.width+i*sw+x)*4+3]>24){x1=Math.min(x1,x);y1=Math.min(y1,y);x2=Math.max(x2,x);y2=Math.max(y2,y);}result.push({sx:i*sw+x1,sy:j*sh+y1,w:x2-x1+1,h:y2-y1+1});}return result;}
+export async function loadIllustratedArt(){if(assets.terrain)return;await Promise.all(['terrain','objects','avatar','avatar-boy-v2','chicken-yard-v2','expansion-v1','curb-stones-v1'].map(async name=>{const image=new Image();image.src=art(name);await image.decode();assets[name]=image;}));for(const[name,cols,rows]of [['objects',3,2],['chicken-yard-v2',1,1],['curb-stones-v1',2,2]])bounds[name]=crop(assets[name],cols,rows,name==='curb-stones-v1'?120:24);}
+function crop(image,cols,rows,threshold=24){const c=document.createElement('canvas');c.width=image.width;c.height=image.height;const ctx=c.getContext('2d',{willReadFrequently:true});ctx.drawImage(image,0,0);const data=ctx.getImageData(0,0,c.width,c.height).data,sw=c.width/cols,sh=c.height/rows,result=[];for(let j=0;j<rows;j++)for(let i=0;i<cols;i++){let x1=sw,y1=sh,x2=0,y2=0;for(let y=0;y<sh;y++)for(let x=0;x<sw;x++)if(data[((j*sh+y)*c.width+i*sw+x)*4+3]>threshold){x1=Math.min(x1,x);y1=Math.min(y1,y);x2=Math.max(x2,x);y2=Math.max(y2,y);}result.push({sx:i*sw+x1,sy:j*sh+y1,w:x2-x1+1,h:y2-y1+1});}return result;}
 export function avatarColors(avatar){return cleanColors(avatar.colors?.[avatar.style==='boy'?'boy':'girl']||{skin:avatar.skin,hair:avatar.hair,outfit:avatar.clothes});}
 function avatarImage(avatar){const style=avatar.style==='boy'?'boy':'girl',colors=avatarColors(avatar),key=style+JSON.stringify(colors);if(!colored.has(key)){if(colored.size>16)colored.clear();colored.set(key,recolor(style==='boy'?assets['avatar-boy-v2']:assets.avatar,style,colors));}return colored.get(key);}
 export function drawAvatarPreview(canvas,avatar){let ctx=canvas.getContext('2d');ctx.clearRect(0,0,canvas.width,canvas.height);ctx.drawImage(avatarImage(avatar),0,512,256,512,0,0,canvas.width,canvas.height);}
@@ -23,20 +23,18 @@ export function mountIllustratedGame(id,getOasis,onSpot,onItem,onWalk,onAvatar,g
  if(H>1024){t.globalCompositeOperation='destination-out';const fade=t.createLinearGradient(0,900,0,1024);fade.addColorStop(0,'rgba(0,0,0,0)');fade.addColorStop(1,'rgba(0,0,0,1)');t.fillStyle=fade;t.fillRect(0,900,W,124);}ctx.drawImage(terrain,0,0);}
  function outlinePlot(slot){const polygon=plotOutline(slot);ctx.beginPath();polygon.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));ctx.closePath();}
  function stoneBorder(slot){
-  // Follow the actual lot perimeter; no separate platform or placement offset.
-  const polygon=plotOutline(slot),colors=['#e6d7bd','#d7c5a8','#cbb899','#eee1cb'];
+  // Rounded illustrated stones follow the existing lot; its path-facing entrance stays open.
+  const polygon=plotOutline(slot);
   for(let edge=0;edge<polygon.length;edge++){
-   const a=polygon[edge],b=polygon[(edge+1)%polygon.length],dx=b[0]-a[0],dy=b[1]-a[1],length=Math.hypot(dx,dy),count=Math.ceil(length/23);
+   const a=polygon[edge],b=polygon[(edge+1)%polygon.length],dx=b[0]-a[0],dy=b[1]-a[1],horizontal=Math.abs(dx)>Math.abs(dy),length=Math.hypot(dx,dy),count=Math.round(length/(horizontal?25:21));
    for(let i=0;i<count;i++){
-    // The south entrance faces the walking lane.
-    if(edge===2&&Math.abs((i+.5)/count-.5)<.09)continue;
-    const u=(i+.06)/count,v=(i+.93)/count,x=a[0]+dx*u,y=a[1]+dy*u,x2=a[0]+dx*v,y2=a[1]+dy*v,half=5;
-    const nx=-dy/length*half,ny=dx/length*half,h=7+(i%3);
-    ctx.beginPath();ctx.moveTo(x-nx,y-ny);ctx.lineTo(x2-nx,y2-ny);ctx.lineTo(x2-nx,y2-ny-h);ctx.lineTo(x-nx,y-ny-h);ctx.closePath();ctx.fillStyle='#ad9575';ctx.fill();
-    ctx.beginPath();ctx.moveTo(x-nx,y-ny-h);ctx.lineTo(x2-nx,y2-ny-h);ctx.lineTo(x2+nx,y2+ny-h);ctx.lineTo(x+nx,y+ny-h);ctx.closePath();ctx.fillStyle=colors[(i+edge)%colors.length];ctx.fill();ctx.strokeStyle='#b5a080';ctx.lineWidth=.8;ctx.stroke();
+    const t=(i+.5)/count;if(edge===2&&Math.abs(t-.5)<.09)continue;
+    const cell=(horizontal?0:2)+(i%2),image=assets['curb-stones-v1'],bnd=bounds['curb-stones-v1'][cell],w=horizontal?26:18,h=w*bnd.h/bnd.w;
+    ctx.drawImage(image,bnd.sx,bnd.sy,bnd.w,bnd.h,a[0]+dx*t-w/2,a[1]+dy*t-h/2-3,w,h);
    }
   }
  }
+
  let background=null;function land(){if(!background||background.height!==H){background=document.createElement('canvas');background.width=W;background.height=H;const main=ctx;ctx=background.getContext('2d');drawLand();ctx=main;}ctx.drawImage(background,0,0);}
  function paint(dt){const oasis=getOasis();view();ctx.clearRect(0,0,cw,ch);ctx.fillStyle='#d8b37d';ctx.fillRect(0,0,cw,ch);ctx.save();ctx.translate(cw/2-camera.x*scale,ch/2-camera.y*scale);ctx.scale(scale,scale);land();
  if(!reduced)for(const[x,y,offset]of [[785,414,0],[916,455,.4],[800,510,.7]]){const phase=(time/3200+offset)%1;ctx.strokeStyle=`rgba(237,255,249,${Math.sin(phase*Math.PI)*.42})`;ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(x,y,12+phase*35,4+phase*10,0,0,Math.PI*2);ctx.stroke();}
