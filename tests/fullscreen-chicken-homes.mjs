@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import {spawn} from 'node:child_process';
+import {plots} from '../src/illustrated-world.js';
 const require=createRequire(import.meta.url),{chromium}=require(`${process.env.CODEX_PRIMARY_RUNTIME_NODE_MODULES}/playwright`);
 const server=spawn(process.execPath,['node_modules/vite/bin/vite.js','--host','127.0.0.1','--port','5196','--strictPort']);
 await new Promise((resolve,reject)=>{server.stdout.on('data',d=>String(d).includes('Local:')&&resolve());server.once('exit',c=>reject(Error(`Server exited ${c}`)));});
@@ -25,7 +26,7 @@ try{
  // Existing coop, unassigned chickens: select and save sends them to it visibly.
  await page.evaluate(key=>{const o=JSON.parse(localStorage.getItem(key));o.items.push({id:'coop',item_type:'coop',slot_index:8});o.items.find(i=>i.id==='hen-a').slot_index=10;localStorage.setItem(key,JSON.stringify(o));},key);await page.reload();await page.waitForFunction(()=>document.querySelector('#scene canvas')?.dataset.state);
  await page.getByRole('button',{name:'Chickens · 2 need a coop',exact:true}).click();await page.getByRole('button',{name:'Chicken coop 1 · 0/6 chickens',exact:true}).click();assert.equal(await page.locator('.pen-animal').count(),2,'only chickens offered to coop');await page.getByRole('button',{name:'Select animals waiting for a home',exact:true}).click();assert.equal(await page.locator('.pen-animal input:checked').count(),2);await page.getByRole('button',{name:'Save animals',exact:true}).click();await page.waitForFunction(()=>!document.querySelector('.scrim'));assert.ok((await stored()).items.filter(i=>i.item_type==='chicken').every(i=>i.pen_item_id==='coop'));assert.equal((await stored()).stars,7);
- await page.waitForFunction(()=>JSON.parse(document.querySelector('#scene canvas').dataset.state).animals.filter(a=>a.type==='chicken').every(a=>a.mode==='home'&&Math.abs(a.x-195)<95&&a.y>1165&&a.y<1250),null,{timeout:20000});
+ await page.waitForFunction(home=>JSON.parse(document.querySelector('#scene canvas').dataset.state).animals.filter(a=>a.type==='chicken').every(a=>a.mode==='home'&&Math.abs(a.x-home.x)<95&&a.y>=home.y&&a.y<home.y+60),plots[8],{timeout:20000});
  await page.reload();await page.waitForFunction(()=>document.querySelector('#scene canvas')?.dataset.state);assert.equal(await page.getByRole('button',{name:'Chickens',exact:true}).count(),1,'housing survives reload');assert.deepEqual(errors,[]);
  console.log('PASS: native fullscreen and restricted-browser fallback, tablet/phone/landscape exit, no overflow, missing-coop guidance, matching hen assignment, physical arrival and saved housing.');
 }finally{await browser.close();server.kill();}
