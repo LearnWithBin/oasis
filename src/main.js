@@ -1,3 +1,4 @@
+import {mountFullscreen} from './fullscreen.js';
 import './style.css';
 import { enterOasis, updateProfile, buyItem, moveItem, sellItem, setAnimalHome, setAnimalCompanion, setPenAnimals, collectEggs, isPreview } from './backend.js';
 import { mountGame } from './game.js';
@@ -34,10 +35,10 @@ function say(message) {
 function shell() {
   app.innerHTML = `<main class="shell">
     <header class="topbar"><div class="brand"><span class="brand-icon">✦</span><div><small>LEARNWITHBIN</small><strong>My Oasis</strong></div></div>
-      <div class="top-actions"><div class="star-balance"><span>★</span> <b id="stars">0</b> <small>STARS</small></div><button id="edit" class="round" title="Edit your name and avatar">⚙</button></div></header>
+      <div class="top-actions"><div class="star-balance"><span>★</span> <b id="stars">0</b> <small>STARS</small></div><button id="full-screen" class="fullscreen-button" aria-pressed="false">Full screen</button><button id="edit" class="round" title="Edit your name and avatar">⚙</button></div></header>
     <section class="stage"><div id="scene"></div><div class="world-avatar" id="world-avatar"></div><div class="scene-title"><span>MY LITTLE WORLD</span><h1 id="title"></h1></div><div class="welcome-tip" id="tip">Tap sand to walk · drag to explore</div></section>
     <nav class="world-controls" aria-label="Explore your Oasis">
-      <div class="world-buttons"><button id="zoom-out" type="button" aria-label="Zoom out">−</button><button id="zoom-in" type="button" aria-label="Zoom in">+</button><button id="whole-oasis" type="button">Whole Oasis</button><button id="follow-me" type="button">Follow me</button><button id="animal-menu" type="button">Animals</button></div>
+      <div class="world-buttons"><button id="zoom-out" type="button" aria-label="Zoom out">−</button><button id="zoom-in" type="button" aria-label="Zoom in">+</button><button id="whole-oasis" type="button">Whole Oasis</button><button id="follow-me" type="button">Follow me</button><button id="expanded-build" type="button" aria-pressed="false">Build menu</button><button id="animal-menu" type="button">Animals</button><button id="chicken-homes" type="button">Chickens</button></div>
       <span class="world-status" id="world-status"></span><span class="egg-basket" id="egg-basket">${eggIcon} 0 eggs</span><span class="land-progress" id="land-progress">Your land grows as you build</span>
     </nav>
     <nav class="shop" aria-label="Build menu"><div class="shop-heading"><b>Build your Oasis</b><span>Choose an item, then tap a glowing spot</span></div>
@@ -70,7 +71,10 @@ function shell() {
   document.querySelector('#zoom-out').onclick = () => game.zoom(-1);
   document.querySelector('#whole-oasis').onclick = () => game.overview();
   document.querySelector('#follow-me').onclick = () => game.follow();
+  document.querySelector('#expanded-build').onclick=()=>{const shell=document.querySelector('.shell'),open=shell.classList.toggle('build-menu-open');document.querySelector('#expanded-build').setAttribute('aria-pressed',String(open));};
   document.querySelector('#animal-menu').onclick = showAnimals;
+  document.querySelector('#chicken-homes').onclick=showChickenHomes;
+  mountFullscreen(document.querySelector('.shell'),document.querySelector('#full-screen'),{onEnter:()=>game.follow()});
   document.addEventListener('keydown', handleWalkKey);
   sync();
   if (!oasis.oasis_name) showProfile();
@@ -82,6 +86,7 @@ function shell() {
 
 function sync() {
   document.querySelector('#stars').textContent = oasis.stars;
+  const waiting=oasis.items.filter(i=>i.item_type==='chicken'&&!animalPen(oasis,i)).length;document.querySelector('#chicken-homes').textContent=waiting?`Chickens · ${waiting} need a coop`:'Chickens';
   document.querySelector('#egg-basket').innerHTML=`${eggIcon} ${oasis.eggs||0} ${(oasis.eggs||0)===1?'egg':'eggs'}`;
   document.querySelector('#title').textContent = oasis.oasis_name || 'Your Oasis';
   document.querySelector('#world-avatar').innerHTML = avatarMarkup(oasis.avatar, { eggs: oasis.eggs || 0 });
@@ -283,6 +288,7 @@ function showPen(pen) {
   ${pen.item_type==='coop'?`<div class="egg-collection"><b>${eggIcon} Your basket: ${oasis.eggs||0} ${(oasis.eggs||0)===1?'egg':'eggs'}</b><p>${!eggs.count?'House your chickens here to start collecting eggs.':eggs.ready?'One egg per housed chicken is ready to collect.':`Next eggs in ${Math.ceil(eggs.wait/3600000)} hours. Collect once every 24 hours.`}</p><button type="button" id="collect-eggs" class="primary" ${eggs.ready?'':'disabled'}>Collect ${eggs.count} ${eggs.count===1?'egg':'eggs'}</button></div>`:''}
   <div class="pen-count" id="pen-count"></div>
   <div class="animal-list">${animals.map((item,index)=>`<label class="animal-card pen-animal"><img src="${asset(ITEMS[item.item_type].image)}" alt=""/><span>${itemLabel(item.item_type)} ${index+1}<small>${animalPen(oasis,item)?`Lives in pen ${ownedPens(oasis).findIndex(p=>p.id===item.pen_item_id)+1}`:'Lives at the shared home'}</small></span><input type="checkbox" value="${item.id}" ${item.pen_item_id===pen.id?'checked':''} aria-label="House ${itemLabel(item.item_type).toLowerCase()} ${index+1}"/></label>`).join('')}</div>
+  ${animals.some(i=>!animalPen(oasis,i))?'<button type="button" id="house-waiting" class="item-trade">Select animals waiting for a home</button>':''}
   ${animals.length?'<button type="button" class="primary" id="save-pen">Save animals</button>':'<p>Buy animals from the build menu, then return here to choose their home.</p>'}
   <div class="dialog-actions"><button type="button" id="move-pen">Move pen</button><button type="button" id="sell-pen">Sell for ★ 6</button></div>
   <button type="button" class="dialog-cancel" id="close-pen">Keep it here</button><div class="form-error" id="item-error" role="alert"></div>
@@ -291,6 +297,7 @@ function showPen(pen) {
  const selectedAnimals=()=>Array.from(root.querySelectorAll('input:checked'),input=>input.value);
  const update=()=>{const n=selectedAnimals().length;root.querySelector('#pen-count').textContent=`${n} / ${PEN_CAPACITY} animals`;const save=root.querySelector('#save-pen');if(save)save.disabled=n>PEN_CAPACITY;};
  root.querySelectorAll('input').forEach(input=>input.onchange=update);update();
+ root.querySelector('#house-waiting')?.addEventListener('click',()=>{let n=selectedAnimals().length;for(const input of root.querySelectorAll('input:not(:checked)')){const animal=animals.find(i=>i.id===input.value);if(!animalPen(oasis,animal)&&n<PEN_CAPACITY){input.checked=true;n++;}}update();});
  root.querySelector('#save-pen')?.addEventListener('click',()=>animalAction(()=>setPenAnimals(pen.id,selectedAnimals()),'Your animals are walking to their pen.'));
  root.querySelector('#move-pen').onclick=()=>{root.innerHTML='';selectItemToMove(pen);};
  root.querySelector('#close-pen').onclick=()=>{root.innerHTML='';};
@@ -321,3 +328,10 @@ function showIllustratedProfile(){
 }
 
 function illustratedThumbnails(){for(const img of document.querySelectorAll('.shop-item img,.animal-card img')){const type=Object.keys(ITEMS).find(type=>img.getAttribute('src')?.endsWith(ITEMS[type].image));if(!type)continue;const c=document.createElement('canvas');c.width=100;c.height=60;c.setAttribute('aria-label',itemLabel(type));drawItemPreview(c,type);img.replaceWith(c);}}
+
+function showChickenHomes(){
+ const coops=ownedPens(oasis).filter(p=>p.item_type==='coop'),hens=ownedAnimals(oasis).filter(a=>a.item_type==='chicken'),waiting=hens.filter(a=>!animalPen(oasis,a)),root=document.querySelector('#modal-root');
+ root.innerHTML=`<div class="scrim"><section class="item-dialog animal-dialog" role="dialog" aria-modal="true" aria-labelledby="chicken-homes-title"><h2 id="chicken-homes-title">Your chickens</h2><p>${!hens.length?'Buy a chicken to start your flock.':waiting.length?`${waiting.length} ${waiting.length===1?'chicken needs':'chickens need'} a coop. Chickens live in the white chicken yard; the brown pen is for goats.`:'Your chickens have a coop. A companion can come out with you and walk home again.'}</p>${coops.map((coop,index)=>`<button type="button" class="item-trade" data-coop="${coop.id}">Chicken coop ${index+1} · ${penResidents(oasis,coop).length}/6 chickens</button>`).join('')}${!coops.length?`<p>You do not own a chicken coop yet. A coop costs ★ ${ITEMS.coop.cost}. You have ★ ${oasis.stars}${oasis.stars<ITEMS.coop.cost?`; save ${ITEMS.coop.cost-oasis.stars} more stars to build one`:''}.</p><button type="button" class="primary" id="choose-coop">Choose a coop spot · ★ ${ITEMS.coop.cost}</button>`:''}<button type="button" class="dialog-cancel" id="close-chicken-homes">Close</button></section></div>`;
+ root.querySelector('#close-chicken-homes').onclick=()=>root.replaceChildren();root.querySelectorAll('[data-coop]').forEach(b=>b.onclick=()=>showPen(coops.find(p=>p.id===b.dataset.coop)));
+ root.querySelector('#choose-coop')?.addEventListener('click',()=>{root.replaceChildren();if(document.querySelector('.shell').classList.contains('game-expanded')){document.querySelector('.shell').classList.add('build-menu-open');document.querySelector('#expanded-build').setAttribute('aria-pressed','true');}document.querySelector('[data-type="coop"]').click();game.overview();say('Choose a roomy glowing spot for your chicken coop.');});
+}
