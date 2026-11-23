@@ -4,6 +4,11 @@ import { penGate } from './pens.js';
 export function drawPen(scene,pen,count,onTap){
  const style=ITEMS[pen.item_type].pen;
  const c=WORLD_SPOTS[pen.slot_index],x=c.x*W,y=c.y*H;
+ if(pen.item_type==='cat_home'){
+  const art=scene.add.image(x,y+120,style.shelter).setOrigin(.5,1);art.setDisplaySize(360,360*art.height/art.width).setDepth(y-45);scene.target(art,onTap);
+  const label=scene.add.text(x,y+160,`Cat home · ${count}/6`,{fontSize:'23px',color:'#fff8df',stroke:'#705333',strokeThickness:4}).setOrigin(.5).setDepth(y+165);scene.target(label,onTap);
+  return {update(){}};
+ }
  const ground=scene.add.ellipse(x,y+12,370,230,0xcba36a,.30).setStrokeStyle(3,0xeed5a2,.6).setDepth(y-180);scene.target(ground,onTap);
  const back=scene.add.graphics().setPosition(x,y).setDepth(y-125);
  const front=scene.add.graphics().setPosition(x,y).setDepth(y+120);

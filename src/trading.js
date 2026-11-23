@@ -132,7 +132,7 @@ export function mountTrading({ getOasis, setOasis, say }) {
       <h3>Make an offer</h3>
       <label for="trade-recipient">Send to</label><select id="trade-recipient" required>${data.peers.map(p => `<option value="${esc(p.id)}">${esc(p.oasis_name)}</option>`).join('')}</select>
       <label for="trade-item">Your item</label><select id="trade-item" required>${items.map(i => `<option value="${esc(i.id)}">${esc(label(i.item_type))} · spot ${i.slot_index + 1}</option>`).join('')}</select>
-      <label for="trade-wants">Ask for</label><select id="trade-wants"><option value="palms">Date palms</option><option value="tent">Canvas tent</option><option value="goat">Baby goat</option><option value="chicken">Chicken</option><option value="stars">Stars</option></select>
+      <label for="trade-wants">Ask for</label><select id="trade-wants"><option value="palms">Date palms</option><option value="tent">Canvas tent</option><option value="goat">Baby goat</option><option value="chicken">Chicken</option><option value="cat">Cat</option><option value="stars">Stars</option></select>
       <div id="trade-price-row" hidden><label for="trade-price">How many stars?</label><input id="trade-price" type="number" min="1" max="100" step="1" inputmode="numeric" value="2"/></div>
       <p class="trade-note">Your classmate chooses which matching item to give. Offers last 7 days. You can cancel while waiting.</p>
       <div class="trade-actions"><button type="submit">Review offer</button><button type="button" id="offer-back" class="trade-secondary">Back</button></div>

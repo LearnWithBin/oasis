@@ -1,4 +1,6 @@
 export const ITEMS = {
+  cat: {label:'Cat',cost:8,refund:4,image:'cat-atlas-v1.webp',animal:{texture:'cat',step:'cat-step',walkImage:'cat-atlas-v1.webp',restImage:'cat-atlas-v1.webp',rest:'cat-rest',width:116,height:102,speed:210}},
+  cat_home: {label:'Cat home',cost:12,refund:6,image:'cat-atlas-v1.webp',pen:{species:'cat',shelter:'cat-home-art',wood:0xc78385,posts:0xad686e,trim:0xf4d8cb,gate:0xce9693}},
   palms: { label: 'Date palms', cost: 2, refund: 1, image: 'date-palms.webp' },
   pen: { label: 'Goat pen', cost: 12, refund: 6, image: 'animal-pen.svg', pen: {species:'goat',shelter:'pen-shelter',wood:0xaa7947,posts:0x966333,trim:0xdbb77d,gate:0xb58a53} },
   coop: { label: 'Chicken coop', cost: 12, refund: 6, image: 'chicken-coop.svg', pen: {species:'chicken',shelter:'coop-shelter',wood:0xf5f0e5,posts:0xe9dfcc,trim:0xffffff,gate:0xf7f2e7} },

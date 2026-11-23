@@ -1,3 +1,4 @@
+import {loadCatArt,drawCatPreview} from './cat-art.js';
 import {mountFullscreen} from './fullscreen.js';
 import './style.css';
 import { enterOasis, updateProfile, buyItem, moveItem, sellItem, setAnimalHome, setAnimalCompanion, setPenAnimals, collectEggs, isPreview } from './backend.js';
@@ -39,7 +40,7 @@ function shell() {
       <div class="top-actions"><div class="star-balance"><span>★</span> <b id="stars">0</b> <small>STARS</small></div><button id="full-screen" class="fullscreen-button" aria-pressed="false">Full screen</button><button id="edit" class="round" title="Edit your name and avatar">⚙</button></div></header>
     <section class="stage"><div id="scene"></div><div class="world-avatar" id="world-avatar"></div><div class="scene-title"><span>MY LITTLE WORLD</span><h1 id="title"></h1></div><div class="welcome-tip" id="tip">Tap sand to walk · drag to explore</div></section>
     <nav class="world-controls" aria-label="Explore your Oasis">
-      <div class="world-buttons"><button id="zoom-out" type="button" aria-label="Zoom out">−</button><button id="zoom-in" type="button" aria-label="Zoom in">+</button><button id="whole-oasis" type="button">Whole Oasis</button><button id="follow-me" type="button">Follow me</button><button id="expanded-build" type="button" aria-pressed="false">Build menu</button><button id="animal-menu" type="button">Animals</button><button id="chicken-homes" type="button">Chickens</button></div>
+      <div class="world-buttons"><button id="zoom-out" type="button" aria-label="Zoom out">−</button><button id="zoom-in" type="button" aria-label="Zoom in">+</button><button id="whole-oasis" type="button">Whole Oasis</button><button id="follow-me" type="button">Follow me</button><button id="expanded-build" type="button" aria-pressed="false">Build menu</button><button id="animal-menu" type="button">Animals</button><button id="chicken-homes" type="button">Chickens</button><button id="cat-homes" type="button">Cats</button></div>
       <span class="world-status" id="world-status"></span><button type="button" class="egg-basket" id="egg-basket">${eggIcon} My basket · 0 eggs</button><span class="land-progress" id="land-progress">Your land grows as you build</span>
     </nav>
     <nav class="shop" aria-label="Build menu"><div class="shop-heading"><b>Build your Oasis</b><span>Choose an item, then tap a glowing spot</span></div>
@@ -49,6 +50,8 @@ function shell() {
       <button class="shop-item" data-type="pen"><img src="${asset('animal-pen.svg')}" alt="Goat pen"/><span>Goat pen</span><small>room for 6</small><b>★ 12</b></button>
       <button class="shop-item" data-type="chicken"><img src="${asset('chicken.svg')}" alt="Chicken"/><span>Chicken</span><b>★ 6</b></button>
       <button class="shop-item" data-type="coop"><img src="${asset('chicken-coop.svg')}" alt="Chicken coop"/><span>Chicken coop</span><small>room for 6</small><b>★ 12</b></button>
+      <button class="shop-item" data-type="cat"><img src="${asset('cat-atlas-v1.webp')}" data-cat="cat" alt="Cat"/><span>Cat</span><b>★ 8</b></button>
+      <button class="shop-item" data-type="cat_home"><img src="${asset('cat-atlas-v1.webp')}" data-cat="cat_home" alt="Cat home"/><span>Cat home</span><small>room for 6</small><b>★ 12</b></button>
       <button class="shop-item move" data-type="move"><span class="move-icon">↔</span><span>Rearrange</span><small>free</small></button>
       <button class="shop-item trades" id="class-trades" data-type="trade"><span class="move-icon">⇄</span><span>Class trades</span><small>items or stars</small><b id="trade-count" hidden></b></button>
     </nav><div id="toast" class="toast" role="status" hidden></div>
@@ -66,7 +69,7 @@ function shell() {
     document.querySelector('#tip').textContent = type === 'move' ? 'Tap an item, then tap an empty spot' : isPen(type)?'Tap a roomy glowing spot to build a pen':'Tap sand to walk · drag to explore';
     game?.refresh();
   });
-  if(illustrated){illustratedThumbnails();new MutationObserver(illustratedThumbnails).observe(document.querySelector('#modal-root'),{childList:true,subtree:true});}
+  illustratedThumbnails();new MutationObserver(illustratedThumbnails).observe(document.querySelector('#modal-root'),{childList:true,subtree:true});
   game = (illustrated?mountIllustratedGame:mountGame)('scene', () => oasis, handleSpot, handleItem, handleWalk, projectAvatar, () => intent);
   document.querySelector('#zoom-in').onclick = () => game.zoom(1);
   document.querySelector('#zoom-out').onclick = () => game.zoom(-1);
@@ -75,6 +78,7 @@ function shell() {
   document.querySelector('#expanded-build').onclick=()=>{const shell=document.querySelector('.shell'),open=shell.classList.toggle('build-menu-open');document.querySelector('#expanded-build').setAttribute('aria-pressed',String(open));};
   document.querySelector('#animal-menu').onclick = showAnimals;
   document.querySelector('#chicken-homes').onclick=showChickenHomes;
+  document.querySelector('#cat-homes').onclick=showCatHomes;
   document.querySelector('#egg-basket').onclick=showEggBasket;
   mountFullscreen(document.querySelector('.shell'),document.querySelector('#full-screen'),{onEnter:()=>game.follow()});
   document.addEventListener('keydown', handleWalkKey);
@@ -285,7 +289,7 @@ function showAnimals() {
   root.innerHTML=`<div class="scrim"><section class="item-dialog animal-dialog" role="dialog" aria-modal="true" aria-labelledby="animals-title">
     <div class="kicker">YOUR OASIS</div><h2 id="animals-title">Your animals</h2>
     <p>${animals.length?'Choose one companion to follow you. Animals return to their pen or shared home.':'Buy an animal from the build menu to start your home group.'}</p>
-    <div class="animal-list">${animals.map((item,index)=>`<div class="animal-card"><img src="${asset(ITEMS[item.item_type].image)}" alt=""/><span>${itemLabel(item.item_type)} ${index+1}<small>${oasis.companion_item_id===item.id?'Your companion':animalPen(oasis,item)?`Pen ${ownedPens(oasis).findIndex(p=>p.id===item.pen_item_id)+1}`:'Shared home'}</small></span><button type="button" data-pet="${item.id}">${oasis.companion_item_id===item.id?'Send home':'Follow me'}</button></div>`).join('')}</div>
+    <div class="animal-list">${animals.map((item,index)=>`<div class="animal-card"><img src="${asset(ITEMS[item.item_type].image)}" ${item.item_type==='cat'?'data-cat="cat"':''} alt=""/><span>${itemLabel(item.item_type)} ${index+1}<small>${oasis.companion_item_id===item.id?'Your companion':animalPen(oasis,item)?itemLabel(animalPen(oasis,item).item_type):'Shared home'}</small></span><button type="button" data-pet="${item.id}">${oasis.companion_item_id===item.id?'Send home':'Follow me'}</button></div>`).join('')}</div>
     ${ownedPens(oasis).map((pen,index)=>`<button type="button" class="item-trade" data-pen="${pen.id}">${itemLabel(pen.item_type)} ${index+1} · ${penResidents(oasis,pen).length}/6 animals</button>`).join('')}
     ${animals.some(i=>!animalPen(oasis,i))?'<button type="button" id="move-animal-home" class="item-trade">Move animal home</button>':''}
     <button type="button" id="close-animals" class="dialog-cancel">Close animals</button><div id="item-error" class="form-error" role="alert"></div>
@@ -301,10 +305,10 @@ function showPen(pen) {
  const number=ownedPens(oasis).findIndex(p=>p.id===pen.id)+1;
  root.innerHTML=`<div class="scrim"><section class="item-dialog animal-dialog" role="dialog" aria-modal="true" aria-labelledby="pen-title">
   <div class="kicker">ON YOUR OASIS</div><h2 id="pen-title">${itemLabel(pen.item_type)} ${number}</h2>
-  <p>Choose up to six ${penSpecies(pen)==='chicken'?'chickens':'goats'} to live here. Your pet can come out with you and return through the gate.</p>
+  <p>Choose up to six ${{chicken:'chickens',goat:'goats',cat:'cats'}[penSpecies(pen)]} to live here. Your pet can come out with you and return through the gate.</p>
   ${pen.item_type==='coop'?`<div class="egg-collection"><b>${eggIcon} Your basket: ${oasis.eggs||0} ${(oasis.eggs||0)===1?'egg':'eggs'}</b><p>${!eggs.count?'House your chickens here to start collecting eggs.':eggs.ready?'One egg per housed chicken is ready to collect.':`Next eggs in ${Math.ceil(eggs.wait/3600000)} hours. Collect once every 24 hours.`}</p><button type="button" id="collect-eggs" class="primary" ${eggs.ready?'':'disabled'}>Collect ${eggs.count} ${eggs.count===1?'egg':'eggs'}</button></div>`:''}
   <div class="pen-count" id="pen-count"></div>
-  <div class="animal-list">${animals.map((item,index)=>`<label class="animal-card pen-animal"><img src="${asset(ITEMS[item.item_type].image)}" alt=""/><span>${itemLabel(item.item_type)} ${index+1}<small>${animalPen(oasis,item)?`Lives in pen ${ownedPens(oasis).findIndex(p=>p.id===item.pen_item_id)+1}`:'Lives at the shared home'}</small></span><input type="checkbox" value="${item.id}" ${item.pen_item_id===pen.id?'checked':''} aria-label="House ${itemLabel(item.item_type).toLowerCase()} ${index+1}"/></label>`).join('')}</div>
+  <div class="animal-list">${animals.map((item,index)=>`<label class="animal-card pen-animal"><img src="${asset(ITEMS[item.item_type].image)}" ${item.item_type==='cat'?'data-cat="cat"':''} alt=""/><span>${itemLabel(item.item_type)} ${index+1}<small>${animalPen(oasis,item)?`Lives in ${itemLabel(animalPen(oasis,item).item_type).toLowerCase()}`:'Lives at the shared home'}</small></span><input type="checkbox" value="${item.id}" ${item.pen_item_id===pen.id?'checked':''} aria-label="House ${itemLabel(item.item_type).toLowerCase()} ${index+1}"/></label>`).join('')}</div>
   ${animals.some(i=>!animalPen(oasis,i))?'<button type="button" id="house-waiting" class="item-trade">Select animals waiting for a home</button>':''}
   ${animals.length?'<button type="button" class="primary" id="save-pen">Save animals</button>':'<p>Buy animals from the build menu, then return here to choose their home.</p>'}
   <div class="dialog-actions"><button type="button" id="move-pen">Move pen</button><button type="button" id="sell-pen">Sell for ★ 6</button></div>
@@ -326,7 +330,7 @@ function showPen(pen) {
 }
 
 app.innerHTML = '<div class="loading">Opening your Oasis…</div>';
-enterOasis().then(async data => { oasis = data;if(illustrated)await loadIllustratedArt();shell(); }).catch(error => {
+enterOasis().then(async data => { oasis = data;await loadCatArt();if(illustrated)await loadIllustratedArt();shell(); }).catch(error => {
   app.innerHTML = `<div class="entry-error"><h1>My Oasis</h1><p></p><small>LearnWithBin</small></div>`;
   app.querySelector('p').textContent = error.message;
 });
@@ -344,11 +348,27 @@ function showIllustratedProfile(){
  form.onsubmit=async e=>{e.preventDefault();const name=form.querySelector('#illustrated-name').value.trim();if(name.length<2)return;form.querySelector('.primary').disabled=true;try{oasis=await updateProfile(name,avatar);root.replaceChildren();sync();say('Your avatar and Oasis name are saved.');}catch(error){form.querySelector('#form-error').textContent=error.message;form.querySelector('.primary').disabled=false;}};
 }
 
-function illustratedThumbnails(){for(const img of document.querySelectorAll('.shop-item img,.animal-card img')){const type=Object.keys(ITEMS).find(type=>img.getAttribute('src')?.endsWith(ITEMS[type].image));if(!type)continue;const c=document.createElement('canvas');c.width=100;c.height=60;c.setAttribute('aria-label',itemLabel(type));drawItemPreview(c,type);img.replaceWith(c);}}
+function illustratedThumbnails(){for(const img of document.querySelectorAll('.shop-item img,.animal-card img')){const type=img.dataset.cat||Object.keys(ITEMS).find(type=>img.getAttribute('src')?.endsWith(ITEMS[type].image));if(!type||!illustrated&&!['cat','cat_home'].includes(type))continue;const c=document.createElement('canvas');c.width=100;c.height=60;c.setAttribute('aria-label',itemLabel(type));if(['cat','cat_home'].includes(type))drawCatPreview(c,type);else drawItemPreview(c,type);img.replaceWith(c);}}
 
 function showChickenHomes(){
  const coops=ownedPens(oasis).filter(p=>p.item_type==='coop'),hens=ownedAnimals(oasis).filter(a=>a.item_type==='chicken'),waiting=hens.filter(a=>!animalPen(oasis,a)),root=document.querySelector('#modal-root');
  root.innerHTML=`<div class="scrim"><section class="item-dialog animal-dialog" role="dialog" aria-modal="true" aria-labelledby="chicken-homes-title"><h2 id="chicken-homes-title">Your chickens</h2><p>${!hens.length?'Buy a chicken to start your flock.':waiting.length?`${waiting.length} ${waiting.length===1?'chicken needs':'chickens need'} a coop. Chickens live in the white chicken yard; the brown pen is for goats.`:'Your chickens have a coop. A companion can come out with you and walk home again.'}</p>${coops.map((coop,index)=>`<button type="button" class="item-trade" data-coop="${coop.id}">Chicken coop ${index+1} · ${penResidents(oasis,coop).length}/6 chickens</button>`).join('')}${!coops.length?`<p>You do not own a chicken coop yet. A coop costs ★ ${ITEMS.coop.cost}. You have ★ ${oasis.stars}${oasis.stars<ITEMS.coop.cost?`; save ${ITEMS.coop.cost-oasis.stars} more stars to build one`:''}.</p><button type="button" class="primary" id="choose-coop">Choose a coop spot · ★ ${ITEMS.coop.cost}</button>`:''}<button type="button" class="dialog-cancel" id="close-chicken-homes">Close</button></section></div>`;
  root.querySelector('#close-chicken-homes').onclick=()=>root.replaceChildren();root.querySelectorAll('[data-coop]').forEach(b=>b.onclick=()=>showPen(coops.find(p=>p.id===b.dataset.coop)));
  root.querySelector('#choose-coop')?.addEventListener('click',()=>{root.replaceChildren();if(document.querySelector('.shell').classList.contains('game-expanded')){document.querySelector('.shell').classList.add('build-menu-open');document.querySelector('#expanded-build').setAttribute('aria-pressed','true');}document.querySelector('[data-type="coop"]').click();game.overview();say('Choose a roomy glowing spot for your chicken coop.');});
+}
+
+function showCatHomes(){
+ const cats=ownedAnimals(oasis).filter(i=>i.item_type==='cat'),homes=ownedPens(oasis).filter(p=>p.item_type==='cat_home'),root=document.querySelector('#modal-root');
+ root.innerHTML=`<div class="scrim"><section class="item-dialog animal-dialog" role="dialog" aria-modal="true" aria-labelledby="cat-homes-title"><h2 id="cat-homes-title">Your cats</h2><p>Choose a cat to walk with you, or send it home to rest. Cat homes have a rose-colored border and room for six cats.</p>
+ <div class="animal-list">${cats.map((cat,index)=>`<div class="animal-card"><img data-cat="cat" src="${asset(ITEMS.cat.image)}" alt=""/><span>Cat ${index+1}<small>${animalPen(oasis,cat)?'Has a cat home':'Needs a cat home'}</small></span><button type="button" data-cat-pet="${cat.id}">${oasis.companion_item_id===cat.id?'Send home':'Follow me'}</button></div>`).join('')}</div>
+ ${homes.map((home,index)=>`<button type="button" class="item-trade" data-cat-home="${home.id}">Cat home ${index+1} · ${penResidents(oasis,home).length}/6 cats</button>`).join('')}
+ <button type="button" class="item-trade" id="choose-cat">Choose a cat · ★ ${ITEMS.cat.cost}</button>
+ ${!homes.length?`<button type="button" class="primary" id="choose-cat-home">Choose a cat home spot · ★ ${ITEMS.cat_home.cost}</button>`:''}
+ <button type="button" class="dialog-cancel" id="close-cat-homes">Close</button><div id="item-error" class="form-error" role="alert"></div></section></div>`;
+ root.querySelector('#close-cat-homes').onclick=()=>root.replaceChildren();
+ root.querySelectorAll('[data-cat-home]').forEach(b=>b.onclick=()=>showPen(homes.find(p=>p.id===b.dataset.catHome)));
+ root.querySelectorAll('[data-cat-pet]').forEach(b=>b.onclick=()=>animalAction(()=>setAnimalCompanion(oasis.companion_item_id===b.dataset.catPet?null:b.dataset.catPet)));
+ const choose=type=>{root.replaceChildren();if(document.querySelector('.shell').classList.contains('game-expanded')){document.querySelector('.shell').classList.add('build-menu-open');document.querySelector('#expanded-build').setAttribute('aria-pressed','true');}document.querySelector(`[data-type="${type}"]`).click();game.overview();say(type==='cat'?'Tap a glowing spot to welcome your cat.':'Choose a roomy glowing spot for your cat home.');};
+ root.querySelector('#choose-cat').onclick=()=>choose('cat');
+ root.querySelector('#choose-cat-home')?.addEventListener('click',()=>choose('cat_home'));
 }

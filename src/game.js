@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import {catFrameCanvas} from './cat-art.js';
 import { walkingRoute } from './ground.js';
 import { ITEMS } from './catalog.js';
 import { isAnimal, animalHomeSlot, ownedAnimals } from './animals.js';
@@ -22,6 +23,7 @@ export function mountGame(host, getState, onSpot, onItem, onWalk, onProjection, 
       this.load.svg('coop-shelter',asset('coop-shelter.svg'),{width:300,height:225});
       Object.values(ITEMS).filter(item=>item.animal).forEach(item=>{
         const config=item.animal;
+        if(config.texture==='cat')return;
         [[config.texture,item.image],[config.step,config.walkImage],[config.rest,config.restImage],...(config.peck?[[config.peck,config.peckImage]]:[])].forEach(([key,file])=>{
           if(file.endsWith('.svg'))this.load.svg(key,asset(file),{width:240,height:192});
           else this.load.image(key,asset(file));
@@ -30,6 +32,7 @@ export function mountGame(host, getState, onSpot, onItem, onWalk, onProjection, 
     }
     create() {
       scene = this;
+      ['cat','cat-step','cat-rest','cat-home-art'].forEach((key,index)=>this.textures.addCanvas(key,catFrameCanvas(index)));
       this.player = {x:pendingPosition.x*W,y:pendingPosition.y*H};
       this.center = {x:W/2,y:H/2};
       this.follow = false;

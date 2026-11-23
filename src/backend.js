@@ -7,8 +7,9 @@ const url = import.meta.env.VITE_SUPABASE_URL;
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 const client = url && key ? createClient(url, key) : null;
 const preview = new URLSearchParams(location.search).has('preview');
-const STORAGE_KEY = 'learnwithbin-oasis-preview-v1';
-const initial = () => ({ id: 'preview', oasis_name: '', avatar: { skin: '#a86843', hair: '#191719', clothes: '#ee9b52' }, stars: 6, items: [] });
+const catDemo = preview && new URLSearchParams(location.search).get('demo')==='cats';
+const STORAGE_KEY = catDemo ? 'learnwithbin-oasis-cats-preview-v1' : 'learnwithbin-oasis-preview-v1';
+const initial = () => ({ id: 'preview', oasis_name: catDemo?'Cat preview':'', avatar: { skin: '#a86843', hair: catDemo?'#e8cf86':'#191719', clothes: '#ee9b52' }, stars: catDemo?40:6, items: catDemo?[{id:'cat-demo-home',item_type:'cat_home',slot_index:5},{id:'cat-demo-one',item_type:'cat',slot_index:0,pen_item_id:'cat-demo-home'},{id:'cat-demo-two',item_type:'cat',slot_index:2,pen_item_id:'cat-demo-home'}]:[] });
 
 function readPreview() {
   try {

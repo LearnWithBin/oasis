@@ -1,0 +1,41 @@
+-- Run inside BEGIN / ROLLBACK; temporary fixtures only.
+do $$
+declare u uuid:=gen_random_uuid();v uuid:=gen_random_uuid();c uuid:=gen_random_uuid();a uuid:=gen_random_uuid();b uuid:=gen_random_uuid();cat uuid;home uuid;goat uuid;offer uuid;n integer;
+begin
+ insert into auth.users(id) values(u),(v);
+ insert into public.classes(id,slug,title) values(c,'cats-'||c,'Cat tests');
+ insert into public.oases(id,class_id,student_number,invite_hash,owner_auth_uid,oasis_name,stars,land_level) values(a,c,1,a::text,u,'Cats A',300,4),(b,c,2,b::text,v,'Cats B',100,4);
+ perform set_config('request.jwt.claim.sub',u::text,true);
+ set constraints maintain_animal_home immediate;
+ set constraints expand_oasis_land immediate;
+ perform public.purchase_item('cat',0); select id into cat from public.items where oasis_id=a and item_type='cat';
+ perform public.purchase_item('cat_home',8); select id into home from public.items where oasis_id=a and item_type='cat_home';
+ assert (select stars=280 from public.oases where id=a),'cat and home prices';
+ perform public.set_pen_animals(home,array[cat]);
+ perform public.set_animal_companion(cat);
+ assert (select companion_item_id=cat from public.oases where id=a),'cat companion saves';
+ perform public.set_animal_companion(null);
+ perform public.purchase_item('goat',0);select id into goat from public.items where oasis_id=a and item_type='goat';
+ begin perform public.set_pen_animals(home,array[goat]);raise exception 'TEST FAILED wrong species';exception when others then if sqlerrm not like 'Choose the matching animal%' then raise;end if;end;
+ for n in 1..5 loop perform public.purchase_item('cat',0);end loop;
+ perform public.set_pen_animals(home,array(select id from public.items where oasis_id=a and item_type='cat'));
+ assert (select count(*)=6 from public.items where pen_item_id=home),'six cats housed';
+ perform public.purchase_item('cat',0);
+ begin perform public.set_pen_animals(home,array(select id from public.items where oasis_id=a and item_type='cat'));raise exception 'TEST FAILED capacity';exception when others then if sqlerrm not like '%six%' then raise;end if;end;
+ perform public.move_item(home,12);
+ assert (select slot_index=12 from public.items where id=home),'move cat home';
+ perform set_config('request.jwt.claim.sub',v::text,true);
+ begin perform public.set_pen_animals(home,'{}');raise exception 'TEST FAILED ownership';exception when others then if sqlerrm not like 'Choose a pen you own%' then raise;end if;end;
+ perform set_config('request.jwt.claim.sub',u::text,true);
+ offer:=public.create_trade_offer(b,cat,null,5);
+ perform set_config('request.jwt.claim.sub',v::text,true);
+ assert public.resolve_trade_offer(offer,true,null)='accepted','cat trade';
+ assert (select oasis_id=b and pen_item_id is null from public.items where id=cat),'traded cat leaves old home';
+ assert public.sell_item(cat)=4,'cat refund';
+ perform set_config('request.jwt.claim.sub',u::text,true);
+ assert public.sell_item(home)=6,'cat home refund';
+ assert (select count(*)=6 from public.items where oasis_id=a and item_type='cat' and pen_item_id is null),'home sale preserves cats';
+ assert (select eggs=0 from public.oases where id=a),'cats do not create eggs';
+ assert not has_function_privilege('anon','public.purchase_item(text,integer)','EXECUTE'),'anonymous purchase blocked';
+end $$;
+select 'PASS: cat prices, housing, capacity, ownership, companion, moving, trading, refunds and egg isolation' as result;
