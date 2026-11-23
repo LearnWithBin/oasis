@@ -1,0 +1,48 @@
+import assert from 'node:assert/strict';
+import {createRequire} from 'node:module';
+import {spawn} from 'node:child_process';
+const require=createRequire(import.meta.url);
+const {chromium}=require(`${process.env.CODEX_PRIMARY_RUNTIME_NODE_MODULES}/playwright`);
+const server=spawn(process.execPath,['node_modules/vite/bin/vite.js','--host','127.0.0.1','--port','5196','--strictPort']);
+await new Promise((resolve,reject)=>{server.stdout.on('data',d=>String(d).includes('Local:')&&resolve());server.once('exit',c=>reject(new Error(`Vite exited ${c}`)));});
+const browser=await chromium.launch({executablePath:process.env.OASIS_BROWSER_EXECUTABLE||undefined,args:['--no-sandbox']});
+try {
+  const page=await browser.newPage({viewport:{width:1024,height:1366},hasTouch:true,isMobile:true});
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  const key='learnwithbin-oasis-preview-v1';
+  await page.addInitScript(key=>{
+    if(!localStorage.getItem(key))localStorage.setItem(key,JSON.stringify({id:'preview',oasis_name:'Lateef',stars:99,eggs:0,land_level:1,avatar:{skin:'#a86843',hair:'#e7eaf0',clothes:'#ee9b52'},items:[{id:'coop',item_type:'coop',slot_index:5},{id:'hen1',item_type:'chicken',slot_index:0,pen_item_id:'coop'},{id:'hen2',item_type:'chicken',slot_index:2,pen_item_id:'coop'}]}));
+  },key);
+  await page.goto('http://127.0.0.1:5196/oasis/?preview=1&look=illustrated');
+  await page.waitForFunction(()=>document.querySelector('#scene canvas')?.dataset.state);
+  await page.getByRole('button',{name:'My basket · 0 eggs',exact:true}).click();
+  assert.equal(await page.locator('[data-basket-egg]').count(),0);
+  await page.getByRole('button',{name:'Visit chicken coops',exact:true}).click();
+  await page.locator('[data-coop="coop"]').click();
+  await page.getByRole('button',{name:'Collect 2 eggs',exact:true}).click();
+  await page.getByRole('button',{name:'My basket · 2 eggs',exact:true}).click();
+  assert.equal(await page.getByRole('img',{name:'2 eggs in your basket',exact:true}).count(),1);
+  assert.equal(await page.locator('[data-basket-egg]').count(),2);
+  assert.equal(await page.locator('#stars').innerText(),'99');
+  await page.screenshot({path:'/tmp/oasis-basket-closeup.png'});
+  await page.getByRole('button',{name:'Back to my Oasis',exact:true}).click();
+  await page.getByRole('button',{name:'Follow me',exact:true}).click();
+  await page.screenshot({path:'/tmp/oasis-basket-carried.png'});
+  await page.reload();
+  await page.waitForFunction(()=>JSON.parse(document.querySelector('#scene canvas')?.dataset.state||'{}').basket===true);
+  assert.ok((await page.locator('#egg-basket').innerText()).includes('2 eggs'));
+  await page.setViewportSize({width:844,height:390});
+  await page.getByRole('button',{name:'Full screen',exact:true}).click();
+  const button=page.getByRole('button',{name:'My basket · 2 eggs',exact:true});
+  await button.waitFor({state:'visible'});
+  const box=await button.boundingBox();
+  assert.ok(box.x>=0&&box.x+box.width<=844&&box.y+box.height<=390,'basket stays onscreen in landscape fullscreen');
+  await button.click();
+  assert.equal(await page.locator('[data-basket-egg]').count(),2);
+  await page.getByRole('button',{name:'Back to my Oasis',exact:true}).click();
+  await page.getByRole('link',{name:'Original view',exact:true}).click();
+  await page.getByRole('button',{name:'My basket · 2 eggs',exact:true}).click();
+  assert.equal(await page.locator('[data-basket-egg]').count(),2);
+  assert.deepEqual(errors,[]);
+  console.log('PASS: empty basket, collect two eggs, visible eggs, saved basket after reload, landscape fullscreen access, original view; no star or inventory changes.');
+} finally {await browser.close();server.kill();}

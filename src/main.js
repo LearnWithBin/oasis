@@ -7,6 +7,7 @@ import {palettes,cleanColors} from '../public/style-preview/customization.js';
 const illustrated=new URLSearchParams(location.search).get('look')==='illustrated';
 if(illustrated)document.documentElement.classList.add('illustrated');
 import { avatarMarkup } from './avatar.js';
+import { basketPicture } from './egg-basket.js';
 import { mountTrading } from './trading.js';
 import { ITEMS, itemLabel, capacity } from './catalog.js';
 import { isPen, penSpecies, eggCollection, ownedPens, animalPen, penResidents, PEN_CAPACITY } from './pens.js';
@@ -39,7 +40,7 @@ function shell() {
     <section class="stage"><div id="scene"></div><div class="world-avatar" id="world-avatar"></div><div class="scene-title"><span>MY LITTLE WORLD</span><h1 id="title"></h1></div><div class="welcome-tip" id="tip">Tap sand to walk · drag to explore</div></section>
     <nav class="world-controls" aria-label="Explore your Oasis">
       <div class="world-buttons"><button id="zoom-out" type="button" aria-label="Zoom out">−</button><button id="zoom-in" type="button" aria-label="Zoom in">+</button><button id="whole-oasis" type="button">Whole Oasis</button><button id="follow-me" type="button">Follow me</button><button id="expanded-build" type="button" aria-pressed="false">Build menu</button><button id="animal-menu" type="button">Animals</button><button id="chicken-homes" type="button">Chickens</button></div>
-      <span class="world-status" id="world-status"></span><span class="egg-basket" id="egg-basket">${eggIcon} 0 eggs</span><span class="land-progress" id="land-progress">Your land grows as you build</span>
+      <span class="world-status" id="world-status"></span><button type="button" class="egg-basket" id="egg-basket">${eggIcon} My basket · 0 eggs</button><span class="land-progress" id="land-progress">Your land grows as you build</span>
     </nav>
     <nav class="shop" aria-label="Build menu"><div class="shop-heading"><b>Build your Oasis</b><span>Choose an item, then tap a glowing spot</span></div>
       <button class="shop-item active" data-type="palms"><img src="${asset('date-palms.webp')}" alt="Date palms"/><span>Date palms</span><b>★ 2</b></button>
@@ -74,6 +75,7 @@ function shell() {
   document.querySelector('#expanded-build').onclick=()=>{const shell=document.querySelector('.shell'),open=shell.classList.toggle('build-menu-open');document.querySelector('#expanded-build').setAttribute('aria-pressed',String(open));};
   document.querySelector('#animal-menu').onclick = showAnimals;
   document.querySelector('#chicken-homes').onclick=showChickenHomes;
+  document.querySelector('#egg-basket').onclick=showEggBasket;
   mountFullscreen(document.querySelector('.shell'),document.querySelector('#full-screen'),{onEnter:()=>game.follow()});
   document.addEventListener('keydown', handleWalkKey);
   sync();
@@ -87,7 +89,7 @@ function shell() {
 function sync() {
   document.querySelector('#stars').textContent = oasis.stars;
   const waiting=oasis.items.filter(i=>i.item_type==='chicken'&&!animalPen(oasis,i)).length;document.querySelector('#chicken-homes').textContent=waiting?`Chickens · ${waiting} need a coop`:'Chickens';
-  document.querySelector('#egg-basket').innerHTML=`${eggIcon} ${oasis.eggs||0} ${(oasis.eggs||0)===1?'egg':'eggs'}`;
+  document.querySelector('#egg-basket').innerHTML=`${eggIcon} My basket · ${oasis.eggs||0} ${(oasis.eggs||0)===1?'egg':'eggs'}`;
   document.querySelector('#title').textContent = oasis.oasis_name || 'Your Oasis';
   document.querySelector('#world-avatar').innerHTML = avatarMarkup(oasis.avatar, { eggs: oasis.eggs || 0 });
   document.querySelector('#world-status').textContent = `${oasis.items.length} / ${capacity(oasis)} items`;
@@ -261,6 +263,21 @@ async function animalAction(action,message) {
     const field=document.querySelector('#item-error');
     if(field)field.textContent=error.message;else say(error.message);
   } finally {inventoryBusy=false;}
+}
+
+function showEggBasket() {
+  const root=document.querySelector('#modal-root'),count=oasis.eggs||0;
+  root.innerHTML=`<div class="scrim"><section class="item-dialog basket-dialog" role="dialog" aria-modal="true" aria-labelledby="basket-title">
+    <div class="kicker">COLLECTED FROM YOUR CHICKENS</div><h2 id="basket-title">My egg basket</h2>
+    ${basketPicture(count)}<p class="basket-total">${count} ${count===1?'egg':'eggs'}</p>
+    <p>${count?'These eggs are saved in your basket. Your character carries it around the Oasis.':'Your basket is empty. House your chickens in a coop, then collect their eggs.'}</p>
+    ${count>6?'<p>The picture shows a few of your eggs; the total above includes them all.</p>':''}
+    <button type="button" class="primary" id="basket-coops">Visit chicken coops</button>
+    <button type="button" class="dialog-cancel" id="close-basket">Back to my Oasis</button>
+  </section></div>`;
+  root.querySelector('#basket-coops').onclick=showChickenHomes;
+  root.querySelector('#close-basket').onclick=()=>{root.replaceChildren();document.querySelector('#egg-basket').focus();};
+  root.querySelector('#close-basket').focus();
 }
 
 function showAnimals() {
