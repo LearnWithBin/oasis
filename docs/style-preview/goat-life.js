@@ -4,7 +4,7 @@ export class GoatLife {
  constructor(pet,saved,navigation={project,pathTo}){this.nav=navigation;this.pet=!!pet;this.mode=pet?'following':saved?.mode==='returning'?'returning':'home';this.x=Number.isFinite(saved?.x)?saved.x:1245;this.y=Number.isFinite(saved?.y)?saved.y:625;this.face=1;this.route=[];this.nextPlan=0;this.moving=false;this.homeKey=null;}
  snapshot(){return{x:this.x,y:this.y,mode:this.mode};}
  reset(home){this.pet=false;this.mode='home';this.x=home.x;this.y=home.y;this.route=[];this.homeKey=null;this.moving=false;}
- gate(home){return{x:home.x-65,y:home.y+30};}
+ gate(home){return home.gate??{x:home.x-65,y:home.y+30};}
  behind(player){return this.nav.project({x:player.x-45,y:player.y+20}).point;}
  returnRoute(home,door){const gate=this.gate(home);return distance(this,home)<130?[gate,home]:[...this.nav.pathTo(this,door),gate,home];}
  setPet(pet,player,home,door){this.pet=pet;this.nextPlan=0;if(pet){this.mode=distance(this,home)<160?'joining':'following';this.route=this.mode==='joining'?[this.gate(home),door,...this.nav.pathTo(door,this.behind(player))]:this.nav.pathTo(this,this.behind(player));}else{this.mode='returning';this.route=this.returnRoute(home,door);}this.moving=this.route.length>0;}

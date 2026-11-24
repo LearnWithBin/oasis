@@ -255,7 +255,7 @@ function chooseAnimalHome() {
   say('Choose one spot for animals that live outside a pen.');
 }
 
-async function animalAction(action,message) {
+async function animalAction(action,message,onSuccess) {
   if(inventoryBusy)return;
   inventoryBusy=true;
   const oldLevel=oasis.land_level||1;
@@ -263,6 +263,7 @@ async function animalAction(action,message) {
     oasis=await action();document.querySelector('#modal-root').innerHTML='';sync();
     if((oasis.land_level||1)>oldLevel)game.overview();
     say(message || (oasis.companion_item_id?'Your companion will follow you. The others stay home.':'Your companion is walking home.'));
+    onSuccess?.();
   } catch(error) {
     const field=document.querySelector('#item-error');
     if(field)field.textContent=error.message;else say(error.message);
@@ -359,16 +360,30 @@ function showChickenHomes(){
 
 function showCatHomes(){
  const cats=ownedAnimals(oasis).filter(i=>i.item_type==='cat'),homes=ownedPens(oasis).filter(p=>p.item_type==='cat_home'),root=document.querySelector('#modal-root');
- root.innerHTML=`<div class="scrim"><section class="item-dialog animal-dialog" role="dialog" aria-modal="true" aria-labelledby="cat-homes-title"><h2 id="cat-homes-title">Your cats</h2><p>Choose a cat to walk with you, or send it home to rest. Cat homes have a rose-colored border and room for six cats.</p>
+ root.innerHTML=`<div class="scrim"><section class="item-dialog animal-dialog" role="dialog" aria-modal="true" aria-labelledby="cat-homes-title"><h2 id="cat-homes-title">Your cats</h2><p>Add cats here, then open a cat home to choose which cats live there. Each home has room for six.</p>
  <div class="animal-list">${cats.map((cat,index)=>`<div class="animal-card"><img data-cat="cat" src="${asset(ITEMS.cat.image)}" alt=""/><span>Cat ${index+1}<small>${animalPen(oasis,cat)?'Has a cat home':'Needs a cat home'}</small></span><button type="button" data-cat-pet="${cat.id}">${oasis.companion_item_id===cat.id?'Send home':'Follow me'}</button></div>`).join('')}</div>
  ${homes.map((home,index)=>`<button type="button" class="item-trade" data-cat-home="${home.id}">Cat home ${index+1} · ${penResidents(oasis,home).length}/6 cats</button>`).join('')}
- <button type="button" class="item-trade" id="choose-cat">Choose a cat · ★ ${ITEMS.cat.cost}</button>
+ <button type="button" class="primary" id="choose-cat">Add a cat · ★ ${ITEMS.cat.cost}</button>
  ${!homes.length?`<button type="button" class="primary" id="choose-cat-home">Choose a cat home spot · ★ ${ITEMS.cat_home.cost}</button>`:''}
  <button type="button" class="dialog-cancel" id="close-cat-homes">Close</button><div id="item-error" class="form-error" role="alert"></div></section></div>`;
  root.querySelector('#close-cat-homes').onclick=()=>root.replaceChildren();
  root.querySelectorAll('[data-cat-home]').forEach(b=>b.onclick=()=>showPen(homes.find(p=>p.id===b.dataset.catHome)));
  root.querySelectorAll('[data-cat-pet]').forEach(b=>b.onclick=()=>animalAction(()=>setAnimalCompanion(oasis.companion_item_id===b.dataset.catPet?null:b.dataset.catPet)));
- const choose=type=>{root.replaceChildren();if(document.querySelector('.shell').classList.contains('game-expanded')){document.querySelector('.shell').classList.add('build-menu-open');document.querySelector('#expanded-build').setAttribute('aria-pressed','true');}document.querySelector(`[data-type="${type}"]`).click();game.overview();say(type==='cat'?'Tap a glowing spot to welcome your cat.':'Choose a roomy glowing spot for your cat home.');};
- root.querySelector('#choose-cat').onclick=()=>choose('cat');
- root.querySelector('#choose-cat-home')?.addEventListener('click',()=>choose('cat_home'));
+ root.querySelector('#choose-cat').onclick=()=>{
+  const occupied=new Set(oasis.items.map(item=>item.slot_index));
+  const slot=Array.from({length:capacity(oasis)},(_,index)=>index).find(index=>!occupied.has(index));
+  if(slot===undefined){root.querySelector('#item-error').textContent='Your Oasis is full. Free up an inventory spot to add a cat.';return;}
+  animalAction(()=>buyItem('cat',slot),'Cat added! Open a cat home to give it a place to rest.',showCatHomes);
+ };
+ root.querySelector('#choose-cat-home')?.addEventListener('click',()=>{
+  root.replaceChildren();
+  const shell=document.querySelector('.shell');
+  if(shell.classList.contains('game-expanded')){
+   shell.classList.add('build-menu-open');
+   document.querySelector('#expanded-build').setAttribute('aria-pressed','true');
+  }
+  document.querySelector('[data-type="cat_home"]').click();
+  game.overview();
+  say('Choose a roomy glowing spot for your cat home.');
+ });
 }
